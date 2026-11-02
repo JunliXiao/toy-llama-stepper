@@ -1,6 +1,6 @@
 # Toy Llama Block Stepper
 
-一個輕量、零依賴、全前端的 **LLM Transformer Block 逐步計算可視化與互動工具**。
+一個輕量、全前端的 **LLM Transformer Block 逐步計算可視化與互動工具**。
 
 本專案將標準的 Llama/Mistral 架構（包含 GQA、RoPE、SwiGLU MLP 與 RMSNorm）拆解為極小的維度，讓你可以**手動逐步觀測**、**點擊查看向量與矩陣內積細節**，並**即時編輯輸入矩陣 $X_0$** 來觀察數值流轉。
 
@@ -87,7 +87,7 @@ flowchart TD
 ## 🚀 快速開始與部署
 
 ### 1. 本地執行
-環境無需安裝任何依賴，但需要連網能力；複製專案並用瀏覽器開啟：
+無需安裝任何環境，複製專案並用瀏覽器開啟：
 ```bash
 git clone https://github.com/JunliXiao/toy-llama-stepper.git
 # 直接用瀏覽器開啟 index.html 即可
