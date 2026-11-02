@@ -196,7 +196,7 @@ $('#th').onclick = () => {
   // 切換 Favicon 檔案路徑
   const iconEl = $('#favicon');
   if (iconEl) {
-    iconEl.href = isDark ? './icon-dark.svg' : './icon-light.svg';
+    iconEl.href = isDark ? './resources/icon-dark.svg' : './resources/icon-light.svg';
   }
 };
 document.addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName))return;if(e.key=='ArrowRight')go(sel.step+1);if(e.key=='ArrowLeft')go(sel.step-1)});
