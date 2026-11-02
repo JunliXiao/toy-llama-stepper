@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Toy Llama Block Stepper</title>
+<link id="favicon" rel="icon" type="image/svg+xml" href="./resources/icon-light.svg">
+<style>
+:root{--bg:#f6f6f3;--pn:#fff;--tx:#1d1d1b;--mu:#6b6b66;--bd:#dcdcd6;--ac:#2563eb;--pos:37,99,235;--neg:220,60,60;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171a;--pn:#212126;--tx:#ececea;--mu:#9a9a94;--bd:#38383f;--ac:#6ea0ff;--pos:90,150,255;--neg:240,100,100}}
+:root[data-theme="dark"]{--bg:#17171a;--pn:#212126;--tx:#ececea;--mu:#9a9a94;--bd:#38383f;--ac:#6ea0ff;--pos:90,150,255;--neg:240,100,100}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:13px/1.55 system-ui,"Noto Sans TC","PingFang TC",sans-serif}
+#app{display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;height:100%}
+header{grid-column:1/4;display:flex;gap:8px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--bd);background:var(--pn);flex-wrap:wrap}
+header b{margin-right:8px}
+button,select,input{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--bd);border-radius:6px;padding:3px 9px}
+button{cursor:pointer}button:hover{border-color:var(--ac)}
+#list,#main,#side{overflow:auto;padding:10px 12px;min-height:0}
+#list{border-right:1px solid var(--bd);background:var(--pn);padding:6px}
+#side{border-left:1px solid var(--bd);background:var(--pn)}
+.lh{font-weight:600;color:var(--mu);margin:8px 6px 2px;font-size:12px}
+.si{padding:2px 8px;border-radius:5px;cursor:pointer}
+.si:hover{background:var(--bg)}.si.a{background:var(--ac);color:#fff}
+h2{margin:0 0 4px;font-size:18px}
+.card{background:var(--pn);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin:8px 0}
+#fx{font-size:15px;overflow-x:auto;min-height:36px}
+.mu{color:var(--mu)}
+.mw{overflow:auto;max-width:100%}
+.mt{border-collapse:collapse;font:11.5px ui-monospace,Menlo,Consolas,monospace}
+.mt th{color:var(--mu);font-weight:400;padding:1px 5px;text-align:center}
+.mt td{padding:2px 5px;text-align:right;border:1px solid var(--bd);min-width:38px}
+.mt td.cl{cursor:pointer}.mt td.on{outline:2px solid var(--ac)}
+.mt input{width:46px;border:0;border-radius:0;padding:1px 3px;text-align:right;font:inherit;background:transparent}
+.tl{margin:8px 0 3px;font-weight:600}
+.mic{margin-top:5px;padding:6px 9px;border-left:3px solid var(--ac);background:var(--bg);font:11.5px ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.st{font:11.5px ui-monospace,Menlo,Consolas,monospace}
+.row{display:flex;justify-content:space-between;align-items:center;margin:4px 0}
+h3{margin:12px 0 4px;font-size:13px}
+#side a {
+  color: var(--ac);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--ac);
+  transition: opacity 0.2s;
+}
+#side a:hover {
+  opacity: 0.8;
+  border-bottom-style: solid;
+}
+#side a:visited {
+  color: var(--ac); /* 強制覆蓋瀏覽器預設的訪問過紫色 */
+}
+</style>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'}};</script>
+<script async src="./resources/tex-svg.min.js" onload="window.render&&render()"></script>
+</head><body>
+<div id="app">
+<header><b>Toy Llama Stepper</b>
+<button id="b0">⏮</button><button id="bp">◀ 上一步</button><button id="bn">下一步 ▶</button><button id="b1">⏭</button>
+<span id="pos" class="mu"></span><span style="flex:1"></span>
+<label>Q head <select id="hs"></select></label><span id="gl" class="mu"></span>
+<button id="th">🌓</button></header>
+<nav id="list"></nav><main id="main"></main><aside id="side"></aside>
+</div>
+<script>
+/* ===== 基本設定（d_model 與層數固定）===== */
+const cfg={d:16,L:4,Hq:4,Hkv:2,hd:4,ffm:3,theta:10000,T:5,seed:7};
+const sel={step:0,h:0,mi:null};
+let W,X0,steps=[],ck=[];
+
+/* ===== 工具 ===== */
+const $=s=>document.querySelector(s);
+const rng=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const gauss=r=>(r()+r()+r()+r()-2)*1.732;
+const rmat=(r,n,m,s)=>Array.from({length:n},()=>Array.from({length:m},()=>gauss(r)*s));
+const tr=A=>A[0].map((_,j)=>A.map(r=>r[j]));
+const add=(A,B)=>A.map((r,i)=>r.map((v,j)=>v+B[i][j]));
+const nrm=v=>Math.sqrt(v.reduce((a,b)=>a+b*b,0));
+const rms=(X,g)=>X.map(r=>{const s=Math.sqrt(r.reduce((a,v)=>a+v*v,0)/r.length+1e-6);return r.map((v,i)=>v/s*g[i])});
+const f2=v=>isFinite(v)?v.toFixed(2):(v<0?'−∞':'∞');
+const silu=z=>z/(1+Math.exp(-z));
+const ones=n=>Array(n).fill(1);
+function rope(M){const h=cfg.hd/2;return M.map((r,t)=>{const o=r.slice();for(let i=0;i<h;i++){const a=t*Math.pow(cfg.theta,-2*i/cfg.hd),c=Math.cos(a),s=Math.sin(a);o[i]=r[i]*c-r[i+h]*s;o[i+h]=r[i]*s+r[i+h]*c}return o})}
+/* item：A (T×k) 與 Bt (n×k) 的逐列內積，附 micro 展開 */
+const item=(A,Bt,an,bn,div=1)=>{const m=A.map(a=>Bt.map(b=>a.reduce((s,v,k)=>s+v*b[k],0)/div));
+ return{m,micro:(i,j)=>`${an}[t${i}] · ${bn}[${j}] = (`+A[i].map((v,k)=>`${f2(v)}×${f2(Bt[j][k])}`).join(' + ')+`)${div!=1?' / √d_h('+f2(div)+')':''} = <b>${f2(m[i][j])}</b>`}};
+
+/* ===== 權重（隨機）=====
+   WEIGHTS_NOTE：整個 makeWeights() 可替換成「有意義、行為明確」的手工權重，
+   例如讓某個 head 固定看前一個 position（之後可請 AI 協助產生）。
+   形狀：Wq d×(Hq·hd)，Wk/Wv d×(Hkv·hd)，Wo (Hq·hd)×d，Wg/Wu d×ff，Wd ff×d，g1/g2/gf 為 RMSNorm 增益。 */
+function makeWeights(regenX){
+ const {d,L,Hq,Hkv,hd,T}=cfg,ff=d*cfg.ffm,r=rng(cfg.seed);
+ W={layers:[],gf:ones(d)};
+ for(let l=0;l<L;l++)W.layers.push({g1:ones(d),g2:ones(d),
+  Wq:rmat(r,d,Hq*hd,1/Math.sqrt(d)),Wk:rmat(r,d,Hkv*hd,1/Math.sqrt(d)),Wv:rmat(r,d,Hkv*hd,1/Math.sqrt(d)),
+  Wo:rmat(r,Hq*hd,d,1/Math.sqrt(Hq*hd)),Wg:rmat(r,d,ff,1/Math.sqrt(d)),Wu:rmat(r,d,ff,1/Math.sqrt(d)),Wd:rmat(r,ff,d,1/Math.sqrt(ff))});
+ if(regenX)X0=rmat(rng(cfg.seed+999),T,d,1);
+}
+
+const RMS=String.raw`\hat{x}_t=\frac{x_t}{\sqrt{\tfrac1d\sum_{i=1}^{d}x_{t,i}^2+\varepsilon}}\odot g`;
+function stats(x,dx){return'<table class="mt"><tr><th></th><th>‖x‖</th><th>‖Δ‖</th><th>cos(x,Δ)</th><th>‖x+Δ‖</th></tr>'+x.map((r,t)=>{const a=nrm(r),b=nrm(dx[t]),c=r.reduce((s,v,i)=>s+v*dx[t][i],0)/(a*b+1e-12),y=nrm(r.map((v,i)=>v+dx[t][i]));return`<tr><th>t${t}</th><td>${f2(a)}</td><td>${f2(b)}</td><td>${f2(c)}</td><td>${f2(y)}</td></tr>`}).join('')+'</table>'}
+
+/* ===== 前向計算，同時產生每個步驟 ===== */
+function forward(){
+ const {T,d,Hq,Hkv,hd,L}=cfg,grp=Hq/Hkv;steps=[];ck=[];let x=X0;
+ const P=(layer,name,tex,desc,tensors,st)=>steps.push({layer,name,tex,desc,tensors,st,ci:ck.length-1});
+ const R=n=>[...Array(n).keys()];
+ ck.push({x,label:'X₀'});
+ P(-1,'Input X₀',String.raw`X_0\in\mathbb{R}^{T\times d}`,'直接把 X₀ 當作 embedding 之後的 residual stream：每一列是一個 position 的向量。你可以直接編輯下面任何一格，後面所有步驟會即時重算。',[{label:'X₀（T×d，可編輯）',items:[{m:x,edit:true}]}]);
+ for(let l=0;l<L;l++){
+  const w=W.layers[l],n1=rms(x,w.g1);
+  P(l,'Attn RMSNorm',RMS,'pre-norm：每個 position 各自除以自己的 RMS，再乘增益 g（此處 g=1）。只改變向量長度，不改變方向；注意 residual stream 本身沒有被改動，送進 attention 的只有 x̂。',[{label:'x（residual stream）',items:[{m:x}]},{label:'x̂ = RMSNorm(x)',items:[{m:n1}]}]);
+  const tq=tr(w.Wq),tk=tr(w.Wk),tv=tr(w.Wv);
+  const Q=R(Hq).map(h=>item(n1,tq.slice(h*hd,h*hd+hd),'x̂','Wq')),K=R(Hkv).map(g=>item(n1,tk.slice(g*hd,g*hd+hd),'x̂','Wk')),V=R(Hkv).map(g=>item(n1,tv.slice(g*hd,g*hd+hd),'x̂','Wv'));
+  P(l,'Q / K / V 投影',String.raw`Q_h=\hat X W_Q^{(h)},\quad K_g=\hat X W_K^{(g)},\quad V_g=\hat X W_V^{(g)},\quad g=\lfloor h/(H_q/H_{kv})\rfloor`,`GQA：${Hq} 個 Q head 共用 ${Hkv} 組 K/V，每 ${grp} 個 Q head 共用一組。Q 決定「我想找什麼」，K 決定「我能被怎麼找到」，V 是「被讀走的內容」。點任一格可展開成逐項乘加。`,[{label:'Q',by:'q',items:Q},{label:'K',by:'kv',items:K},{label:'V',by:'kv',items:V}]);
+  const Qr=Q.map(o=>rope(o.m)),Kr=K.map(o=>rope(o.m));
+  const ang=R(T).map(t=>R(hd/2).map(i=>(t*Math.pow(cfg.theta,-2*i/hd)*180/Math.PI)%360));
+  P(l,'RoPE',String.raw`\begin{pmatrix}q'_i\\ q'_{i+d_h/2}\end{pmatrix}=\begin{pmatrix}\cos m\theta_i&-\sin m\theta_i\\ \sin m\theta_i&\cos m\theta_i\end{pmatrix}\begin{pmatrix}q_i\\ q_{i+d_h/2}\end{pmatrix},\quad\theta_i=\Theta^{-2i/d_h}`,'只旋轉 Q 與 K（V 不動）。位置 m 的向量在第 i 個二維平面轉 mθᵢ，向量長度不變，但 Q·K 之後只依賴相對距離。θᵢ 隨 i 變小：前面的維度轉得快（高頻），後面轉得慢（低頻）。',[{label:'Q（RoPE 前）',by:'q',items:Q},{label:"Q′（RoPE 後）",by:'q',items:Qr.map(m=>({m}))},{label:"K′（RoPE 後）",by:'kv',items:Kr.map(m=>({m}))},{label:'旋轉角 mθᵢ（度，mod 360）',items:[{m:ang}]}]);
+  const S=Qr.map((q,h)=>item(q,Kr[Math.floor(h/grp)],"q′","k′",Math.sqrt(hd)));
+  P(l,'Scores QKᵀ',String.raw`S_h=\frac{Q'_h\,{K'_g}^{\top}}{\sqrt{d_h}}`,'S[i][j] 是 position i 的 query 與 position j 的 key 的內積（除以 √d_h 穩定尺度）。此時還沒有 mask，上三角的值之後會被丟掉。',[{label:'S = Q′K′ᵀ/√d_h（mask 前）',by:'q',items:S}]);
+  const Sm=S.map(o=>o.m.map((r,i)=>r.map((v,j)=>j>i?-Infinity:v)));
+  const A=Sm.map(M=>M.map(r=>{const mx=Math.max(...r),e=r.map(v=>Math.exp(v-mx)),s=e.reduce((a,b)=>a+b);return e.map(v=>v/s)}));
+  const Ai=A.map((M,h)=>({m:M,prob:1,micro:(i,j)=>{const e=Sm[h][i].map(v=>Math.exp(v));const s=e.reduce((a,b)=>a+b);return`softmax 第 ${i} 列：exp(S)=[${e.slice(0,i+1).map(f2).join(', ')}]，Σ=${f2(s)}，A[t${i}][${j}] = ${f2(e[j])}/${f2(s)} = <b>${f2(M[i][j])}</b>`}}));
+  P(l,'Causal mask + Softmax',String.raw`A_{ij}=\frac{e^{S_{ij}}}{\sum_{k\le i}e^{S_{ik}}}\ (j\le i),\qquad A_{ij}=0\ (j>i)`,'因果遮罩：position i 只能看 j≤i，被遮的位置設為 −∞，softmax 後為 0。每一列加總為 1，A[i][j] 就是 position i 從 position j 讀多少。',[{label:'S（mask 後）',by:'q',items:Sm.map(m=>({m}))},{label:'A = softmax(S)',by:'q',items:Ai}]);
+  const O=A.map((a,h)=>item(a,tr(V[Math.floor(h/grp)].m),'A','V'));
+  P(l,'加權和 A·V',String.raw`O_h=A_h\,V_g`,'每個 position 把「可見位置的 V」按注意力權重混合起來，這就是 attention 唯一跨 position 搬運資訊的步驟。',[{label:'A',by:'q',items:Ai},{label:'V（對應的 KV group）',by:'kv',items:V},{label:'O = A·V',by:'q',items:O}]);
+  const C=R(T).map(t=>O.flatMap(o=>o.m[t])),ao=item(C,tr(w.Wo),'C','Wo');
+  P(l,'o_proj',String.raw`\mathrm{attn}=\big[O_1\,\|\,\cdots\,\|\,O_{H_q}\big]\,W_O`,'把所有 head 的輸出接起來，再用 W_O 投影回 d_model 維。等價於「每個 head 各自經過 W_O 的一個切片，再相加寫入 residual stream」。',[{label:`C = concat(heads)（T×${Hq*hd}）`,items:[{m:C}]},{label:'attn_out = C·W_O',items:[ao]}]);
+  const x2=add(x,ao.m);ck.push({x:x2,label:`L${l} attn`});
+  P(l,'Residual 加回（attn）',String.raw`x\leftarrow x+\mathrm{Attn}(\mathrm{RMSNorm}(x))`,'attention 的輸出以「加法」寫回 residual stream。下表是每個 position 的寫入量 ‖Δ‖ 與寫入方向和原向量的夾角。',[{label:'x（前）',items:[{m:x}]},{label:'Δ = attn_out',items:[ao]},{label:'x + Δ',items:[{m:x2}]}],stats(x,ao.m));
+  x=x2;const n2=rms(x,w.g2);
+  P(l,'MLP RMSNorm',RMS,'MLP 前的第二個 pre-norm。',[{label:'x',items:[{m:x}]},{label:'x̂ = RMSNorm(x)',items:[{m:n2}]}]);
+  const G=item(n2,tr(w.Wg),'x̂','Wg'),U=item(n2,tr(w.Wu),'x̂','Wu');
+  P(l,'gate / up 投影',String.raw`G=\hat X W_{gate},\qquad U=\hat X W_{up}`,`兩條平行的線性投影，維度從 ${d} 擴到 ${d*cfg.ffm}。MLP 對每個 position 獨立作用，不跨 token。`,[{label:'G = gate',items:[G]},{label:'U = up',items:[U]}]);
+  const Sg=G.m.map(r=>r.map(silu)),Hh=Sg.map((r,i)=>r.map((v,j)=>v*U.m[i][j]));
+  P(l,'SwiGLU',String.raw`H=\mathrm{silu}(G)\odot U,\qquad \mathrm{silu}(z)=z\,\sigma(z)=\frac{z}{1+e^{-z}}`,'silu(G) 當作「閘門」，逐元素去調制 U：閘門接近 0 的神經元被關掉，正值較大的被放行。',[{label:'silu(G)',items:[{m:Sg}]},{label:'U',items:[U]},{label:'H = silu(G) ⊙ U',items:[{m:Hh}]}]);
+  const Dn=item(Hh,tr(w.Wd),'h','Wd');
+  P(l,'down_proj',String.raw`\mathrm{mlp}=H\,W_{down}`,'投影回 d_model。從 mech interp 角度，可視為「ff 個神經元各自帶著 W_down 的一列，按啟動量加權寫入 residual stream」。',[{label:'mlp_out = H·W_down',items:[Dn]}]);
+  const x3=add(x,Dn.m);ck.push({x:x3,label:`L${l} mlp`});
+  P(l,'Residual 加回（MLP）',String.raw`x\leftarrow x+\mathrm{MLP}(\mathrm{RMSNorm}(x))`,'MLP 的輸出加回 residual stream，完成一個 block。',[{label:'x（前）',items:[{m:x}]},{label:'Δ = mlp_out',items:[Dn]},{label:'x + Δ',items:[{m:x3}]}],stats(x,Dn.m));
+  x=x3;
+ }
+ const nf=rms(x,W.gf);ck.push({x:nf,label:'final'});
+ P(L,'Final RMSNorm',RMS,'最後一層之後的 norm。真實模型在這之後接 unembed 變成 logits，此處省略，輸出就是這個矩陣。',[{label:'x',items:[{m:x}]},{label:'output',items:[{m:nf}]}]);
+}
+
+/* ===== 渲染 ===== */
+const curItem=tn=>tn.items[tn.by=='q'?sel.h:tn.by=='kv'?Math.floor(sel.h/(cfg.Hq/cfg.Hkv)):0];
+function matHTML(it,ti){const m=it.m,fin=m.flat().filter(isFinite),mx=Math.max(1e-9,...fin.map(Math.abs));
+ let h='<div class="mw"><table class="mt"><tr><th></th>'+m[0].map((_,j)=>`<th>${j}</th>`).join('')+'</tr>';
+ m.forEach((r,i)=>{h+=`<tr><th>t${i}</th>`;r.forEach((v,j)=>{const a=isFinite(v)?(it.prob?v:Math.min(1,Math.abs(v)/mx))*.8:0,c=it.prob||v>=0?'var(--pos)':'var(--neg)',bg=`background:rgba(${c},${a})`;
+  const on=sel.mi&&sel.mi[0]==ti&&sel.mi[1]==i&&sel.mi[2]==j;
+  h+=it.edit?`<td><input data-i="${i}" data-j="${j}" value="${v.toFixed(2)}" style="${bg}"></td>`:`<td class="${it.micro?'cl':''}${on?' on':''}" data-t="${ti}" data-i="${i}" data-j="${j}" style="${bg}">${f2(v)}</td>`});h+='</tr>'});
+ return h+'</table></div>'}
+function chart(){const w=290,h=130,n=ck.length,mx=Math.max(...ck.flatMap(c=>c.x.map(nrm)))*1.1,X=i=>25+i*(w-35)/(n-1),Y=v=>h-18-v/mx*(h-30);
+ let s=`<svg viewBox="0 0 ${w} ${h}" width="100%">`;const ci=steps[sel.step].ci;
+ s+=`<rect x="${X(ci)-3}" y="6" width="6" height="${h-24}" fill="rgba(var(--pos),.25)"/>`;
+ for(let t=0;t<cfg.T;t++)s+=`<polyline fill="none" stroke="hsl(${t*360/cfg.T},65%,52%)" stroke-width="1.6" points="${ck.map((c,i)=>X(i)+','+Y(nrm(c.x[t]))).join(' ')}"/>`;
+ s+=ck.map((c,i)=>`<text x="${X(i)}" y="${h-4}" font-size="8" text-anchor="middle" fill="var(--mu)">${c.label.replace(/^L(\d) (.)/,'$1$2')}</text>`).join('')+`<text x="2" y="12" font-size="9" fill="var(--mu)">${f2(mx)}</text></svg>`;
+ return s}
+function render(){
+ const st=steps[sel.step],g=Math.floor(sel.h/(cfg.Hq/cfg.Hkv));
+ $('#pos').textContent=`步驟 ${sel.step+1} / ${steps.length}`;$('#gl').textContent=`→ KV group ${g}`;
+ let li='',last=-2;steps.forEach((s,i)=>{if(s.layer!=last){last=s.layer;li+=`<div class="lh">${s.layer<0?'Input':s.layer==cfg.L?'Output':'Layer '+s.layer}</div>`}li+=`<div class="si${i==sel.step?' a':''}" data-s="${i}">${s.name}</div>`});
+ $('#list').innerHTML=li;const a=$('#list .a');a&&a.scrollIntoView({block:'nearest'});
+ let m=`<h2>${st.layer>=0&&st.layer<cfg.L?'Layer '+st.layer+' · ':''}${st.name}</h2><div class="card"><div id="fx">\\[${st.tex}\\]</div></div><div class="mu">${st.desc}</div>`;
+ if(st.st)m+=`<div class="card st">${st.st}</div>`;
+ st.tensors.forEach((tn,ti)=>{const it=curItem(tn),lb=tn.by=='q'?` — head ${sel.h}`:tn.by=='kv'?` — KV group ${g}`:'';
+  m+=`<div class="tl">${tn.label}${lb}</div>${matHTML(it,ti)}`;
+  if(sel.mi&&sel.mi[0]==ti&&it.micro)m+=`<div class="mic">${it.micro(sel.mi[1],sel.mi[2])}</div>`});
+ if(st.tensors.some(t=>curItem(t).micro))m+='<div class="mu" style="margin-top:6px">提示：點擊有底線游標的格子，可展開該格的逐項計算。</div>';
+ $('#main').innerHTML=m;
+ const c=cfg,divs=[1,2,4,8].filter(v=>c.Hq%v==0),op=(a,v)=>a.map(x=>`<option${x==v?' selected':''}>${x}</option>`).join('');
+ $('#side').innerHTML=`<h3>參數（d_model=${c.d}、層數=${c.L} 固定）</h3>
+ <div class="row">Q heads<select data-k="Hq">${op([2,4,8],c.Hq)}</select></div>
+ <div class="row">KV heads<select data-k="Hkv">${op(divs,c.Hkv)}</select></div>
+ <div class="row">head_dim<select data-k="hd">${op([2,4,8],c.hd)}</select></div>
+ <div class="row">MLP 倍率<select data-k="ffm">${op([2,3,4],c.ffm)}</select></div>
+ <div class="row">seq_len<select data-k="T">${op([3,4,5,6,7,8],c.T)}</select></div>
+ <div class="row">rope_theta<input data-k="theta" type="number" value="${c.theta}" style="width:90px"></div>
+ <div class="row">seed<input data-k="seed" type="number" value="${c.seed}" style="width:90px"></div>
+ <div class="mu">更動 seed / seq_len 會重新產生 X₀，其餘參數只重生權重。</div>
+ <h3>Residual stream 範數 ‖xₜ‖</h3>${chart()}<div class="mu">每條線是一個 position；橫軸是各 block 寫入後的檢查點，淺色帶是目前步驟。</div>
+ <h3>備註</h3><div class="mu">權重目前是 seed 隨機值，輸出沒有語意。原始碼中的 makeWeights() 可整塊換成有明確行為的手工權重。<br>專案來源：<a href="https://github.com/JunliXiao/toy-llama-stepper" target="_blank" rel="noopener">GitHub</a></div>`;
+ if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([$('#fx')]).catch(()=>{});
+}
+function recompute(regenW,regenX){if(regenW)makeWeights(regenX);forward();sel.mi=null;render()}
+function go(i){sel.step=Math.max(0,Math.min(steps.length-1,i));sel.mi=null;render()}
+$('#b0').onclick=()=>go(0);$('#b1').onclick=()=>go(steps.length-1);$('#bp').onclick=()=>go(sel.step-1);$('#bn').onclick=()=>go(sel.step+1);
+$('#th').onclick = () => {
+  const r = document.documentElement;
+  // 判斷切換後的模式是否為 dark
+  const isDark = r.dataset.theme ? r.dataset.theme === 'light' : !matchMedia('(prefers-color-scheme:dark)').matches;
+  
+  // 切換主題屬性
+  r.dataset.theme = isDark ? 'dark' : 'light';
+  
+  // 切換 Favicon 檔案路徑
+  const iconEl = $('#favicon');
+  if (iconEl) {
+    iconEl.href = isDark ? './icon-dark.svg' : './icon-light.svg';
+  }
+};
+document.addEventListener('keydown',e=>{if(/INPUT|SELECT/.test(e.target.tagName))return;if(e.key=='ArrowRight')go(sel.step+1);if(e.key=='ArrowLeft')go(sel.step-1)});
+$('#list').onclick=e=>{const s=e.target.closest('.si');s&&go(+s.dataset.s)};
+$('#main').onclick=e=>{const td=e.target.closest('td.cl');if(td){sel.mi=[+td.dataset.t,+td.dataset.i,+td.dataset.j];render()}};
+$('#main').onchange=e=>{const t=e.target;if(t.dataset.i!=null){X0[+t.dataset.i][+t.dataset.j]=parseFloat(t.value)||0;recompute(false)}};
+$('#hs').onchange=e=>{sel.h=+e.target.value;sel.mi=null;render()};
+$('#side').onchange=e=>{const t=e.target,k=t.dataset.k;if(!k)return;cfg[k]=+t.value;
+ if(k=='Hq'&&cfg.Hq%cfg.Hkv)cfg.Hkv=1;
+ sel.h=Math.min(sel.h,cfg.Hq-1);fillHs();recompute(k!='theta',k=='T'||k=='seed')};
+function fillHs(){$('#hs').innerHTML=[...Array(cfg.Hq).keys()].map(i=>`<option value="${i}"${i==sel.h?' selected':''}>${i}</option>`).join('')}
+fillHs();makeWeights(true);forward();render();
+</script>
+</body></html>
