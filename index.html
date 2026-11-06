@@ -231,6 +231,56 @@
       font-size: 13px
     }
 
+    .tip-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: help;
+      position: relative;
+      margin: 12px 0 4px;
+      font-size: 13px;
+    }
+
+    .tip-title .info-icon {
+      font-size: 11px;
+      color: var(--mu);
+      font-weight: 400;
+      opacity: 0.85;
+      transition: color 0.15s;
+    }
+
+    .tip-title:hover .info-icon {
+      color: var(--ac);
+    }
+
+    .tip-title .tip-box {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      background: var(--pn);
+      color: var(--tx);
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: normal;
+      line-height: 1.45;
+      width: 230px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-3px);
+      transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    .tip-title:hover .tip-box {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
     #side a {
       color: var(--ac);
       text-decoration: none;
@@ -262,11 +312,13 @@
     
     #side a.social-icon-link:hover svg {
       opacity: 1;
-      transform: scale(1.1); /* 微微放大增加互動感 */
+      transform: scale(1.1);
     }
   </style>
   <script>window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }, svg: { fontCache: 'global' } };</script>
   <script async src="./resources/tex-svg.min.js" onload="window.render&&render()"></script>
+  <!-- 預設載入純靜態模型權重 (開箱即用、無須執行期運算)；若本地開發想動態調整生成邏輯，可改用 presets.js -->
+  <script src="./models/models-static.js"></script>
 </head>
 
 <body>
@@ -274,6 +326,7 @@
     <header><b>Toy Llama Stepper</b>
       <button id="b0">⏮</button><button id="bp">◀ 上一步</button><button id="bn">下一步 ▶</button><button id="b1">⏭</button>
       <span id="pos" class="mu"></span><span style="flex:1"></span>
+      <label>模型 <select id="ms"></select></label>
       <label>Q head <select id="hs"></select></label><span id="gl" class="mu"></span>
       <button id="th">🌓</button>
     </header>
@@ -284,7 +337,7 @@
   <script>
     /* ===== 基本設定（d_model 與層數固定）===== */
     const cfg = { d: 16, L: 4, Hq: 4, Hkv: 2, hd: 4, ffm: 3, theta: 10000, T: 5, seed: 7 };
-    const sel = { step: 0, h: 0, mi: null };
+    const sel = { step: 0, h: 0, mi: null, model: 'baseline' };
     let W, X0, steps = [], ck = [];
 
     /* ===== 工具 ===== */
@@ -306,10 +359,14 @@
       return { m, micro: (i, j) => `${an}[t${i}] · ${bn}[${j}] = (` + A[i].map((v, k) => `${f2(v)}×${f2(Bt[j][k])}`).join(' + ') + `)${div != 1 ? ' / √d_h(' + f2(div) + ')' : ''} = <b>${f2(m[i][j])}</b>` }
     };
 
-    /* ===== 權重（隨機）=====
-       WEIGHTS_NOTE：整個 makeWeights() 可替換成「有意義、行為明確」的手工權重，
-       例如讓某個 head 固定看前一個 position（之後可請 AI 協助產生）。
-       形狀：Wq d×(Hq·hd)，Wk/Wv d×(Hkv·hd)，Wo (Hq·hd)×d，Wg/Wu d×ff，Wd ff×d，g1/g2/gf 為 RMSNorm 增益。 */
+    /* ===== 輸入與模型載入 ===== */
+    function initInput(regen) {
+      if (regen || !X0 || X0.length !== cfg.T) {
+        X0 = rmat(rng(cfg.seed + 999), cfg.T, cfg.d, 1);
+      }
+    }
+
+    /* Fallback 權重生成（當未載入 TOY_MODELS 時） */
     function makeWeights(regenX) {
       const { d, L, Hq, Hkv, hd, T } = cfg, ff = d * cfg.ffm, r = rng(cfg.seed);
       W = { layers: [], gf: ones(d) };
@@ -318,7 +375,29 @@
         Wq: rmat(r, d, Hq * hd, 1 / Math.sqrt(d)), Wk: rmat(r, d, Hkv * hd, 1 / Math.sqrt(d)), Wv: rmat(r, d, Hkv * hd, 1 / Math.sqrt(d)),
         Wo: rmat(r, Hq * hd, d, 1 / Math.sqrt(Hq * hd)), Wg: rmat(r, d, ff, 1 / Math.sqrt(d)), Wu: rmat(r, d, ff, 1 / Math.sqrt(d)), Wd: rmat(r, ff, d, 1 / Math.sqrt(ff))
       });
-      if (regenX) X0 = rmat(rng(cfg.seed + 999), T, d, 1);
+      if (regenX) initInput(true);
+    }
+
+    function loadModel(modelId, regenX = false) {
+      sel.model = modelId;
+      const models = window.TOY_MODELS || {};
+      const m = models[modelId] || models['baseline'];
+      if (m) {
+        Object.assign(cfg, m.config);
+        W = {
+          layers: m.layers,
+          gf: m.gf || ones(cfg.d)
+        };
+      } else {
+        makeWeights(regenX);
+      }
+      initInput(regenX);
+      sel.h = Math.min(sel.h, cfg.Hq - 1);
+      fillHs();
+      fillMs();
+      forward();
+      sel.mi = null;
+      render();
     }
 
     const RMS = String.raw`\hat{x}_t=\frac{x_t}{\sqrt{\tfrac1d\sum_{i=1}^{d}x_{t,i}^2+\varepsilon}}\odot g`;
@@ -404,22 +483,28 @@
       });
       if (st.tensors.some(t => curItem(t).micro)) m += '<div class="mu" style="margin-top:6px">提示：點擊有底線游標的格子，可展開該格的逐項計算。</div>';
       $('#main').innerHTML = m;
-      const c = cfg, divs = [1, 2, 4, 8].filter(v => c.Hq % v == 0), op = (a, v) => a.map(x => `<option${x == v ? ' selected' : ''}>${x}</option>`).join('');
+      const c = cfg, op = (a, v) => a.map(x => `<option${x == v ? ' selected' : ''}>${x}</option>`).join('');
+      const mInfo = (window.TOY_MODELS && window.TOY_MODELS[sel.model]) || { name: '自訂模型', desc: '' };
       $('#side').innerHTML = `
-        <h3>參數（d_model=${c.d}、層數=${c.L} 固定）</h3>
-          <div class="row">Q heads<select data-k="Hq">${op([2, 4, 8], c.Hq)}</select></div>
-          <div class="row">KV heads<select data-k="Hkv">${op(divs, c.Hkv)}</select></div>
-          <div class="row">head_dim<select data-k="hd">${op([2, 4, 8], c.hd)}</select></div>
-          <div class="row">MLP 倍率<select data-k="ffm">${op([2, 3, 4], c.ffm)}</select></div>
-          <div class="row">seq_len<select data-k="T">${op([3, 4, 5, 6, 7, 8], c.T)}</select></div>
-          <div class="row">rope_theta<input data-k="theta" type="number" value="${c.theta}" style="width:90px"></div>
-          <div class="row">seed<input data-k="seed" type="number" value="${c.seed}" style="width:90px"></div>
-          <div class="mu">更動 seed / seq_len 會重新產生 X₀，其餘參數只重生權重。</div>
-        <h3>Residual stream 範數 ‖xₜ‖</h3>
+        <h3>模型規格（${mInfo.name}）</h3>
+        <div class="mu" style="margin-bottom:8px">${mInfo.desc || ''}</div>
+        <div class="row"><span class="mu">d_model</span><span>${c.d}</span></div>
+        <div class="row"><span class="mu">層數 (L)</span><span>${c.L}</span></div>
+        <div class="row"><span class="mu">Q heads (Hq)</span><span>${c.Hq}</span></div>
+        <div class="row"><span class="mu">KV heads (Hkv)</span><span>${c.Hkv} (GQA ${c.Hq / c.Hkv}:1)</span></div>
+        <div class="row"><span class="mu">head_dim (hd)</span><span>${c.hd}</span></div>
+        <div class="row"><span class="mu">MLP 倍率 (ffm)</span><span>${c.ffm} (ff=${c.d * c.ffm})</span></div>
+        <div class="row"><span class="mu">RoPE θ</span><span>${c.theta}</span></div>
+        <h3 class="tip-title">輸入設定 (Input / Prompt) <span class="info-icon">ⓘ</span>
+          <span class="tip-box">調整 seq_len 或 seed 會重設 X₀，不影響當前模型權重。</span>
+        </h3>
+        <div class="row">seq_len (T)<select data-k="T">${op([3, 4, 5, 6, 7, 8], c.T)}</select></div>
+        <div class="row">seed<input data-k="seed" type="number" value="${c.seed}" style="width:90px"></div>
+        <h3 class="tip-title">Residual stream 範數 ‖xₜ‖ <span class="info-icon">ⓘ</span>
+          <span class="tip-box">每條線是一個 position；橫軸是各 block 寫入後的檢查點，淺色帶是目前步驟。</span>
+        </h3>
 		  ${chart()}
-		  <div class="mu">每條線是一個 position；橫軸是各 block 寫入後的檢查點，淺色帶是目前步驟。</div>
-        <h3>備註</h3>
-		  <div class="mu">權重目前是 seed 隨機值，輸出沒有語意。原始碼中的 makeWeights() 可整塊換成有明確行為的手工權重。</div>
+        <h3>社群</h3>
 		  <div class="mu">
         <a href="https://github.com/JunliXiao/toy-llama-stepper" target="_blank" rel="noopener" title="GitHub Repository" class="social-icon-link">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle;">
@@ -434,7 +519,7 @@
       </div>`;
       if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([$('#fx')]).catch(() => { });
     }
-    function recompute(regenW, regenX) { if (regenW) makeWeights(regenX); forward(); sel.mi = null; render() }
+    function recompute(regenX) { if (regenX) initInput(true); forward(); sel.mi = null; render() }
     function go(i) { sel.step = Math.max(0, Math.min(steps.length - 1, i)); sel.mi = null; render() }
     $('#b0').onclick = () => go(0); $('#b1').onclick = () => go(steps.length - 1); $('#bp').onclick = () => go(sel.step - 1); $('#bn').onclick = () => go(sel.step + 1);
     $('#th').onclick = () => {
@@ -456,13 +541,24 @@
     $('#main').onclick = e => { const td = e.target.closest('td.cl'); if (td) { sel.mi = [+td.dataset.t, +td.dataset.i, +td.dataset.j]; render() } };
     $('#main').onchange = e => { const t = e.target; if (t.dataset.i != null) { X0[+t.dataset.i][+t.dataset.j] = parseFloat(t.value) || 0; recompute(false) } };
     $('#hs').onchange = e => { sel.h = +e.target.value; sel.mi = null; render() };
+    $('#ms').onchange = e => { loadModel(e.target.value, false); };
     $('#side').onchange = e => {
-      const t = e.target, k = t.dataset.k; if (!k) return; cfg[k] = +t.value;
-      if (k == 'Hq' && cfg.Hq % cfg.Hkv) cfg.Hkv = 1;
-      sel.h = Math.min(sel.h, cfg.Hq - 1); fillHs(); recompute(k != 'theta', k == 'T' || k == 'seed')
+      const t = e.target, k = t.dataset.k; if (!k) return;
+      cfg[k] = +t.value;
+      initInput(true);
+      forward();
+      sel.mi = null;
+      render();
     };
     function fillHs() { $('#hs').innerHTML = [...Array(cfg.Hq).keys()].map(i => `<option value="${i}"${i == sel.h ? ' selected' : ''}>${i}</option>`).join('') }
-    fillHs(); makeWeights(true); forward(); render();
+    function fillMs() {
+      const models = window.TOY_MODELS || {};
+      const keys = Object.keys(models);
+      if (keys.length) {
+        $('#ms').innerHTML = keys.map(k => `<option value="${k}"${k == sel.model ? ' selected' : ''}>${models[k].name}</option>`).join('');
+      }
+    }
+    loadModel('baseline', true);
   </script>
 </body>
 

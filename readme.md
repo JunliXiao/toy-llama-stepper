@@ -9,8 +9,9 @@
 ## 🌟 特色
 
 * **零套件建置**：純原生 HTML/CSS/JavaScript + MathJax，無需 `npm install`，直接在瀏覽器開啟或上載至 GitHub Pages。
+* **特色模型切換**：內建「隨機基準模型」與「Previous-Token Head 機制模型」（示範關注前一個 Token 的注意力頭）。
 * **完整算術展開**：點擊矩陣中任意格子，即可展開查看該格的逐項乘加算數細節 (Micro view)。
-* **可互動輸入**：支援直接編輯 $X_0$ 矩陣，所有後續步驟（Attn、MLP、Residual Stream）皆會即時重新計算。
+* **輸入與模型解耦**：模型架構與權重採獨立資產載入（支援純靜態載入），可隨時自由調整 `seq_len`、`seed` 或直接編輯 $X_0$ 矩陣，所有步驟即時連動重算。
 * **動態圖表**：即時繪製各 position 的 Residual Stream 範數 $\|x_t\|$ 變化折線圖。
 * **深淺色主題**：支援系統自動切換與手動 Toggle 🌓。
 
@@ -68,8 +69,9 @@ flowchart TD
 
 ---
 
-## ⚙️ 模型參數與可調選項
+## ⚙️ 模型規格與輸入設定
 
+### 1. 模型規格（由模型決定，唯讀展示）
 | 參數 | 預設值 | 說明 |
 | :--- | :--- | :--- |
 | `d_model` | `16` | 隱藏層向量維度（固定） |
@@ -78,9 +80,13 @@ flowchart TD
 | `Hkv` | `2` | Key/Value Heads 數量 (GQA 共享比例 `Hq/Hkv`) |
 | `hd` | `4` | Head Dimension 向量維度 |
 | `ffm` | `3` | MLP 隱藏層維度倍率 (`d_model * ffm`) |
-| `T` (seq_len) | `5` | 序列長度（Token 數） |
 | `theta` | `10000` | RoPE 的基底角頻率 $\Theta$ |
-| `seed` | `7` | 隨機權重與輸入生成種子 |
+
+### 2. 輸入與推論設定（可於側邊欄互動調整）
+| 參數 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `T` (seq_len) | `5` | 序列長度（Token 數，支援 3~8） |
+| `seed` | `7` | 輸入矩陣 $X_0$ 生成種子 |
 
 ---
 
@@ -92,6 +98,7 @@ flowchart TD
 git clone https://github.com/JunliXiao/toy-llama-stepper.git
 # 直接用瀏覽器開啟 index.html 即可
 ```
+若要透過 `scripts/build-static.js` 生成權重的靜態檔案，則需安裝 node
 
 ### 2. GitHub Pages 部署
 1. 將專案中的單頁檔案命名為 `index.html`。

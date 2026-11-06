@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 載入 presets.js，會在 global 上註冊 TOY_MODELS
-require('./models/presets.js');
+require('../models/presets.js');
 
 const models = global.TOY_MODELS;
 
@@ -33,5 +33,5 @@ const outputContent = `/**
 window.TOY_MODELS = ${JSON.stringify(cleaned, null, 2)};
 `;
 
-fs.writeFileSync(path.join(__dirname, 'models', 'models-static.js'), outputContent, 'utf-8');
+fs.writeFileSync(path.join(__dirname, '../models', 'models-static.js'), outputContent, 'utf-8');
 console.log('Successfully generated models/models-static.js');
