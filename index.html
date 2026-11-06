@@ -301,6 +301,99 @@
       opacity: 1;
       transform: scale(1.1);
     }
+
+    /* ===== Modal 快捷鍵指南 ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--pn);
+      color: var(--tx);
+      border: 1px solid var(--bd);
+      border-radius: 10px;
+      padding: 16px 20px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+    }
+
+    .modal-hd {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--bd);
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      color: var(--mu);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .modal-close:hover {
+      color: var(--tx);
+      background: var(--bg);
+    }
+
+    .modal-sec {
+      font-weight: 600;
+      color: var(--mu);
+      font-size: 11px;
+      margin: 10px 0 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .modal-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px dashed var(--bd);
+      font-size: 12.5px;
+    }
+
+    .modal-row:last-of-type {
+      border-bottom: none;
+    }
+
+    .modal-ft {
+      margin-top: 14px;
+      font-size: 11.5px;
+      color: var(--mu);
+      text-align: center;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font: 11px ui-monospace, Menlo, Consolas, monospace;
+      background: var(--bg);
+      color: var(--tx);
+      border: 1px solid var(--bd);
+      border-radius: 4px;
+      box-shadow: 0 1px 0 var(--bd);
+      font-weight: 600;
+    }
   </style>
   <script>window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }, svg: { fontCache: 'global' } };</script>
   <script async src="./resources/tex-svg.min.js" onload="window.render&&render()"></script>
@@ -315,11 +408,27 @@
       <span id="pos" class="mu"></span><span style="flex:1"></span>
       <label>模型 <select id="ms"></select></label>
       <label>Q head <select id="hs"></select></label><span id="gl" class="mu"></span>
+      <button id="hk" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
       <button id="th">🌓</button>
     </header>
     <nav id="list"></nav>
     <main id="main"></main>
     <aside id="side"></aside>
+  </div>
+  <div id="modal-kb" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-hd">
+        <b>⌨️ 鍵盤快捷鍵指南</b>
+        <button id="modal-close" class="modal-close">✕</button>
+      </div>
+      <div class="modal-sec">導航操作</div>
+      <div class="modal-row"><span><span class="kbd">←</span> / <span class="kbd">→</span></span><span>上一步 / 下一步</span></div>
+      <div class="modal-row"><span><span class="kbd">Ctrl</span> + <span class="kbd">←</span> / <span class="kbd">→</span></span><span>跳至第一步 (X₀) / 最後一步</span></div>
+      <div class="modal-row"><span><span class="kbd">↑</span> / <span class="kbd">↓</span></span><span>跨 Layer 同階段移動</span></div>
+      <div class="modal-sec">觀察維度</div>
+      <div class="modal-row"><span><span class="kbd">Q</span> / <span class="kbd">W</span></span><span>循環切換上一個 / 下一個 Q head</span></div>
+      <div class="modal-ft">提示：按 <span class="kbd">?</span> 開關此指南，按 <span class="kbd">Esc</span> 關閉。</div>
+    </div>
   </div>
   <script>
     /* ===== 基本設定（d_model 與層數固定）===== */
@@ -459,6 +568,7 @@
     function render() {
       const st = steps[sel.step], g = Math.floor(sel.h / (cfg.Hq / cfg.Hkv));
       $('#pos').textContent = `步驟 ${sel.step + 1} / ${steps.length}`; $('#gl').textContent = `→ KV group ${g}`;
+      if ($('#hs')) $('#hs').value = sel.h;
       let li = '', last = -2; steps.forEach((s, i) => { if (s.layer != last) { last = s.layer; li += `<div class="lh">${s.layer < 0 ? 'Input' : s.layer == cfg.L ? 'Output' : 'Layer ' + s.layer}</div>` } li += `<div class="si${i == sel.step ? ' a' : ''}" data-s="${i}">${s.name}</div>` });
       $('#list').innerHTML = li; const a = $('#list .a'); a && a.scrollIntoView({ block: 'nearest' });
       let m = `<h2>${st.layer >= 0 && st.layer < cfg.L ? 'Layer ' + st.layer + ' · ' : ''}${st.name}</h2><div class="card"><div id="fx">\\[${st.tex}\\]</div></div><div class="mu">${st.desc}</div>`;
@@ -521,7 +631,90 @@
         iconEl.href = isDark ? './resources/icon-dark.svg' : './resources/icon-light.svg';
       }
     };
-    document.addEventListener('keydown', e => { if (/INPUT|SELECT/.test(e.target.tagName)) return; if (e.key == 'ArrowRight') go(sel.step + 1); if (e.key == 'ArrowLeft') go(sel.step - 1) });
+
+    /* ===== Modal 快捷鍵指南控制 ===== */
+    const toggleModal = open => {
+      const el = $('#modal-kb');
+      if (!el) return;
+      if (open === undefined) el.classList.toggle('open');
+      else if (open) el.classList.add('open');
+      else el.classList.remove('open');
+    };
+    $('#hk').onclick = () => toggleModal(true);
+    $('#modal-close').onclick = () => toggleModal(false);
+    $('#modal-kb').onclick = e => { if (e.target === $('#modal-kb')) toggleModal(false); };
+
+    /* ===== 全域鍵盤快捷鍵監聽 ===== */
+    document.addEventListener('keydown', e => {
+      if (/INPUT|SELECT/.test(e.target.tagName)) return;
+
+      // ? 鍵（或 Shift + /）：開關快捷鍵指南
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        toggleModal();
+        return;
+      }
+
+      // Esc 鍵：若指南開啟則關閉
+      if (e.key === 'Escape') {
+        const el = $('#modal-kb');
+        if (el && el.classList.contains('open')) {
+          e.preventDefault();
+          toggleModal(false);
+          return;
+        }
+      }
+
+      // 若 Modal 處於開啟狀態，暫停其他操作以避免干擾
+      const modalOpen = $('#modal-kb') && $('#modal-kb').classList.contains('open');
+      if (modalOpen) return;
+
+      // Q 鍵：Q head 循環 -1
+      if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault();
+        sel.h = (sel.h - 1 + cfg.Hq) % cfg.Hq;
+        sel.mi = null;
+        render();
+        return;
+      }
+
+      // W 鍵：Q head 循環 +1
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        sel.h = (sel.h + 1) % cfg.Hq;
+        sel.mi = null;
+        render();
+        return;
+      }
+
+      // 左右方向鍵：上一步 / 下一步（支援 Ctrl / Cmd 極值跳轉）
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) go(steps.length - 1);
+        else go(sel.step + 1);
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) go(0);
+        else go(sel.step - 1);
+        return;
+      }
+
+      // 上下方向鍵：跨 Layer 切換同算子階段（Layer 0 頂部與 Layer 3 底部不動作）
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const cur = steps[sel.step];
+        if (!cur || cur.layer < 0 || cur.layer >= cfg.L) return;
+
+        const targetLayer = e.key === 'ArrowUp' ? cur.layer - 1 : cur.layer + 1;
+        if (targetLayer < 0 || targetLayer >= cfg.L) return;
+
+        const targetIdx = steps.findIndex(s => s.layer === targetLayer && s.name === cur.name);
+        if (targetIdx !== -1) go(targetIdx);
+        return;
+      }
+    });
     $('#list').onclick = e => { const s = e.target.closest('.si'); s && go(+s.dataset.s) };
     $('#main').onclick = e => { const td = e.target.closest('td.cl'); if (td) { sel.mi = [+td.dataset.t, +td.dataset.i, +td.dataset.j]; render() } };
     $('#main').onchange = e => { const t = e.target; if (t.dataset.i != null) { X0[+t.dataset.i][+t.dataset.j] = parseFloat(t.value) || 0; recompute(false) } };
