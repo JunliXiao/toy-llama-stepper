@@ -21,19 +21,6 @@
       padding-bottom: env(safe-area-inset-bottom, 0px)
     }
 
-    @media (prefers-color-scheme:dark) {
-      :root:not([data-theme="light"]) {
-        --bg: #17171a;
-        --pn: #212126;
-        --tx: #ececea;
-        --mu: #9a9a94;
-        --bd: #38383f;
-        --ac: #6ea0ff;
-        --pos: 90, 150, 255;
-        --neg: 240, 100, 100
-      }
-    }
-
     :root[data-theme="dark"] {
       --bg: #17171a;
       --pn: #212126;
@@ -524,10 +511,8 @@
     $('#b0').onclick = () => go(0); $('#b1').onclick = () => go(steps.length - 1); $('#bp').onclick = () => go(sel.step - 1); $('#bn').onclick = () => go(sel.step + 1);
     $('#th').onclick = () => {
       const r = document.documentElement;
-      // 判斷切換後的模式是否為 dark
-      const isDark = r.dataset.theme ? r.dataset.theme === 'light' : !matchMedia('(prefers-color-scheme:dark)').matches;
-
-      // 切換主題屬性
+      // 預設為淺色 (light)，切換為深色 (dark)；若已是深色則切回淺色
+      const isDark = r.dataset.theme !== 'dark';
       r.dataset.theme = isDark ? 'dark' : 'light';
 
       // 切換 Favicon 檔案路徑
