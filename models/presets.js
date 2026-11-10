@@ -143,13 +143,47 @@
     return model;
   }
 
+  /**
+   * 建立機制模型 (SwiGLU 特徵開關)：
+   * 基於 Baseline，將 Layer 0 MLP 前饋神經元設計為特徵檢測器 (Feature Detector) 與 Key-Value 記憶儲存
+   */
+  function createSwiGLUGateModel(baseline) {
+    const model = JSON.parse(JSON.stringify(baseline));
+    model.id = 'swiglu_gate';
+    model.name = '機制模型 (SwiGLU 特徵開關)';
+    model.desc = '將 Layer 0 的 MLP 神經元特化為「特徵檢測器與記憶寫入」。第 0 號神經元專注檢測「維度 0 為正值」並飽和放行；第 1 號神經元檢測「維度 0 為負值」。請在「SwiGLU」與「down_proj」步驟觀察閘門 (SiLU) 的精準篩選。';
+
+    const { d } = defaultCfg;
+    const l0 = model.layers[0];
+
+    // 特化 Neuron 0: 正特徵檢測器 (Positive Detector for Dim 0)
+    // 當 x̂[0] > 0 時，Wg 投影值為大正數，SiLU(G) 飽和打開 (≈ G)；x̂[0] < 0 時關閉 (≈ 0)
+    for (let k = 0; k < d; k++) {
+      l0.Wg[k][0] = k === 0 ? 4.0 : 0.0;
+      l0.Wu[k][0] = k === 0 ? 2.0 : 0.0;
+      l0.Wd[0][k] = k === 0 ? 1.0 : 0.0;
+    }
+
+    // 特化 Neuron 1: 負特徵檢測器 (Negative Detector for Dim 0)
+    // 當 x̂[0] < 0 時，Wg 投影值 (-4 * 負數) 為正數，SiLU(G) 飽和打開；x̂[0] > 0 時關閉
+    for (let k = 0; k < d; k++) {
+      l0.Wg[k][1] = k === 0 ? -4.0 : 0.0;
+      l0.Wu[k][1] = k === 0 ? -2.0 : 0.0;
+      l0.Wd[1][k] = k === 0 ? -1.0 : 0.0;
+    }
+
+    return model;
+  }
+
   // 構建並註冊模型至全域 window.TOY_MODELS
   const baseline = createBaselineModel(7);
   const prevToken = createPrevTokenModel(baseline);
+  const swigluGate = createSwiGLUGateModel(baseline);
 
   global.TOY_MODELS = {
     baseline,
-    prev_token: prevToken
+    prev_token: prevToken,
+    swiglu_gate: swigluGate
   };
 
 })(typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : this);
