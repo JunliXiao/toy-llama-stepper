@@ -407,7 +407,7 @@
       <button id="b0">⏮</button><button id="bp">◀ 上一步</button><button id="bn">下一步 ▶</button><button id="b1">⏭</button>
       <span id="pos" class="mu"></span><span style="flex:1"></span>
       <label>模型 <select id="ms"></select></label>
-      <label>Q head <select id="hs"></select></label><span id="gl" class="mu"></span>
+      <label>Q head <select id="hs"></select></label>
       <button id="hk" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
       <button id="th">🌓</button>
     </header>
@@ -567,7 +567,7 @@
     }
     function render() {
       const st = steps[sel.step], g = Math.floor(sel.h / (cfg.Hq / cfg.Hkv));
-      $('#pos').textContent = `步驟 ${sel.step + 1} / ${steps.length}`; $('#gl').textContent = `→ KV group ${g}`;
+      $('#pos').textContent = `步驟 ${sel.step + 1} / ${steps.length}`;
       if ($('#hs')) $('#hs').value = sel.h;
       let li = '', last = -2; steps.forEach((s, i) => { if (s.layer != last) { last = s.layer; li += `<div class="lh">${s.layer < 0 ? 'Input' : s.layer == cfg.L ? 'Output' : 'Layer ' + s.layer}</div>` } li += `<div class="si${i == sel.step ? ' a' : ''}" data-s="${i}">${s.name}</div>` });
       $('#list').innerHTML = li; const a = $('#list .a'); a && a.scrollIntoView({ block: 'nearest' });
