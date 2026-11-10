@@ -538,7 +538,7 @@
       const P = (layer, name, tex, desc, tensors, st) => steps.push({ layer, name, tex, desc, tensors, st, ci: ck.length - 1 });
       const R = n => [...Array(n).keys()];
       ck.push({ x, label: 'X₀' });
-      P(-1, 'Input X₀', String.raw`X_0\in\mathbb{R}^{T\times d}`, '直接把 X₀ 當作 embedding 之後的 residual stream：每一列是一個 position 的向量。你可以直接編輯下面任何一格，後面所有步驟會即時重算。', [{ label: 'X₀（T×d，可編輯）', items: [{ m: x, edit: true }] }]);
+      P(-1, 'Input X₀', String.raw`X_0\in\mathbb{R}^{T\times d}`, '直接把 X₀ 當作 embedding 之後的 residual stream（殘差流）：每一列是一個 position 的向量。你可以直接編輯下面任何一格，後面所有步驟會即時重算。', [{ label: 'X₀（T×d，可編輯）', items: [{ m: x, edit: true }] }]);
       for (let l = 0; l < L; l++) {
         const w = W.layers[l], n1 = rms(x, w.g1);
         P(l, 'Attn RMSNorm', RMS, 'pre-norm：每個 position 各自除以自己的 RMS，再乘增益 g（此處 g=1）。只改變向量長度，不改變方向；注意 residual stream 本身沒有被改動，送進 attention 的只有 x̂。', [{ label: 'x（residual stream）', items: [{ m: x }] }, { label: 'x̂ = RMSNorm(x)', items: [{ m: n1 }] }]);
@@ -615,9 +615,9 @@
       const c = cfg, op = (a, v) => a.map(x => `<option${x == v ? ' selected' : ''}>${x}</option>`).join('');
       const mInfo = (window.TOY_MODELS && window.TOY_MODELS[sel.model]) || { name: '自訂模型', desc: '' };
       $('#side').innerHTML = `
-        <h3>模型規格（${mInfo.name}）</h3>
+        <h3>${mInfo.name}</h3>
         <div class="mu" style="margin-bottom:8px">${mInfo.desc || ''}</div>
-        <div class="row"><span class="mu">d_model</span><span>${c.d}</span></div>
+        <div class="row"><span class="mu">維度數 (d_model)</span><span>${c.d}</span></div>
         <div class="row"><span class="mu">層數 (L)</span><span>${c.L}</span></div>
         <div class="row"><span class="mu">Q heads (Hq)</span><span style="display:inline-flex;align-items:center;gap:4px">${c.Hq} <span class="mu"> / 當前</span><select id="hs" style="padding:1px 5px">${[...Array(c.Hq).keys()].map(i => `<option value="${i}"${i == sel.h ? ' selected' : ''}>${i}</option>`).join('')}</select></span></div>
         <div class="row"><span class="mu">KV heads (Hkv)</span><span>${c.Hkv} (GQA ${c.Hq / c.Hkv}:1)</span></div>
@@ -629,7 +629,7 @@
         </h3>
         <div class="row">seq_len (T)<select data-k="T">${op([3, 4, 5, 6, 7, 8], c.T)}</select></div>
         <div class="row">seed<input data-k="seed" type="number" value="${c.seed}" style="width:90px"></div>
-        <h3 class="tip-title">Residual stream 範數 ‖xₜ‖ <span class="info-icon">ⓘ</span>
+        <h3 class="tip-title">殘差流範數 ‖xₜ‖ <span class="info-icon">ⓘ</span>
           <span class="tip-box">每條線是一個 position；橫軸是各 block 寫入後的檢查點，淺色帶是目前步驟。</span>
         </h3>
 		  ${chart()}

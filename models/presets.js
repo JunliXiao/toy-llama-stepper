@@ -88,7 +88,7 @@
 
     return {
       id: 'baseline',
-      name: '基準模型 (Random Baseline, Seed 7)',
+      name: '基準模型：Random Baseline, Seed 7',
       desc: '標準隨機初始化模型（Seed 7）。注意力與前饋特徵呈均勻高斯分佈，展示一般 Transformer 數值流動。',
       config: { ...defaultCfg },
       gf: ones(d),
@@ -104,7 +104,7 @@
     // 深拷貝模型結構
     const model = JSON.parse(JSON.stringify(baseline));
     model.id = 'prev_token';
-    model.name = '機制模型 (Previous-Token Head)';
+    model.name = '機制模型：Previous-Token Head';
     model.desc = '將 Layer 0 的 Head 0 設計為專注於「前一個 Token (t-1)」的注意力頭。請切換至「Causal mask + Softmax」步驟並觀察 Head 0 的次對角線注意力高權重。';
 
     const { d } = defaultCfg;
@@ -150,7 +150,7 @@
   function createSwiGLUGateModel(baseline) {
     const model = JSON.parse(JSON.stringify(baseline));
     model.id = 'swiglu_gate';
-    model.name = '機制模型 (SwiGLU 特徵開關)';
+    model.name = '機制模型：SwiGLU 特徵開關';
     model.desc = '將 Layer 0 的 MLP 神經元特化為「特徵檢測器與記憶寫入」。第 0 號神經元專注檢測「維度 0 為正值」並飽和放行；第 1 號神經元檢測「維度 0 為負值」。請在「SwiGLU」與「down_proj」步驟觀察閘門 (SiLU) 的精準篩選。';
 
     const { d } = defaultCfg;
