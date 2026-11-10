@@ -45,11 +45,31 @@
       display: grid;
       grid-template-columns: 210px 1fr 310px;
       grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "head head head"
+        "list main side";
       height: 100%
     }
 
+    #app.hide-l {
+      grid-template-columns: 0 1fr 310px;
+    }
+
+    #app.hide-r {
+      grid-template-columns: 210px 1fr 0;
+    }
+
+    #app.hide-l.hide-r {
+      grid-template-columns: 0 1fr 0;
+    }
+
+    #app.hide-l #list,
+    #app.hide-r #side {
+      display: none;
+    }
+
     header {
-      grid-column: 1/4;
+      grid-area: head;
       display: flex;
       gap: 8px;
       align-items: center;
@@ -82,6 +102,11 @@
       border-color: var(--ac)
     }
 
+    button.toggled {
+      opacity: 0.5;
+      background: var(--bg);
+    }
+
     #list,
     #main,
     #side {
@@ -91,12 +116,18 @@
     }
 
     #list {
+      grid-area: list;
       border-right: 1px solid var(--bd);
       background: var(--pn);
       padding: 6px
     }
 
+    #main {
+      grid-area: main;
+    }
+
     #side {
+      grid-area: side;
       border-left: 1px solid var(--bd);
       background: var(--pn)
     }
@@ -408,6 +439,8 @@
       <span id="pos" class="mu"></span><span style="flex:1"></span>
       <label>模型 <select id="ms"></select></label>
       <label>Q head <select id="hs"></select></label>
+      <button id="tl" title="收合/展開左側步驟清單 (快捷鍵: [)">⇤</button>
+      <button id="tr" title="收合/展開右側資訊欄 (快捷鍵: ])">⇥</button>
       <button id="hk" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
       <button id="th">🌓</button>
     </header>
@@ -425,7 +458,8 @@
       <div class="modal-row"><span><span class="kbd">←</span> / <span class="kbd">→</span></span><span>上一步 / 下一步</span></div>
       <div class="modal-row"><span><span class="kbd">Ctrl</span> + <span class="kbd">←</span> / <span class="kbd">→</span></span><span>跳至第一步 (X₀) / 最後一步</span></div>
       <div class="modal-row"><span><span class="kbd">↑</span> / <span class="kbd">↓</span></span><span>跨 Layer 同階段移動</span></div>
-      <div class="modal-sec">觀察維度</div>
+      <div class="modal-sec">介面與觀察維度</div>
+      <div class="modal-row"><span><span class="kbd">[</span> / <span class="kbd">]</span></span><span>收合/展開左側欄 / 右側欄</span></div>
       <div class="modal-row"><span><span class="kbd">Q</span> / <span class="kbd">W</span></span><span>循環切換上一個 / 下一個 Q head</span></div>
       <div class="modal-ft">提示：按 <span class="kbd">?</span> 開關此指南，按 <span class="kbd">Esc</span> 關閉。</div>
     </div>
@@ -644,6 +678,20 @@
     $('#modal-close').onclick = () => toggleModal(false);
     $('#modal-kb').onclick = e => { if (e.target === $('#modal-kb')) toggleModal(false); };
 
+    /* ===== 側邊欄收合控制 ===== */
+    const toggleL = () => {
+      const isHidden = $('#app').classList.toggle('hide-l');
+      $('#tl').classList.toggle('toggled', isHidden);
+      $('#tl').title = isHidden ? '展開左側步驟清單 (快捷鍵: [)' : '收合左側步驟清單 (快捷鍵: [)';
+    };
+    const toggleR = () => {
+      const isHidden = $('#app').classList.toggle('hide-r');
+      $('#tr').classList.toggle('toggled', isHidden);
+      $('#tr').title = isHidden ? '展開右側資訊欄 (快捷鍵: ])' : '收合右側資訊欄 (快捷鍵: ])';
+    };
+    $('#tl').onclick = toggleL;
+    $('#tr').onclick = toggleR;
+
     /* ===== 全域鍵盤快捷鍵監聽 ===== */
     document.addEventListener('keydown', e => {
       if (/INPUT|SELECT/.test(e.target.tagName)) return;
@@ -668,6 +716,20 @@
       // 若 Modal 處於開啟狀態，暫停其他操作以避免干擾
       const modalOpen = $('#modal-kb') && $('#modal-kb').classList.contains('open');
       if (modalOpen) return;
+
+      // [ 鍵：切換左側欄收合
+      if (e.key === '[') {
+        e.preventDefault();
+        toggleL();
+        return;
+      }
+
+      // ] 鍵：切換右側欄收合
+      if (e.key === ']') {
+        e.preventDefault();
+        toggleR();
+        return;
+      }
 
       // Q 鍵：Q head 循環 -1
       if (e.key === 'q' || e.key === 'Q') {
