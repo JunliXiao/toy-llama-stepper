@@ -438,7 +438,6 @@
       <button id="b0">⏮</button><button id="bp">◀ 上一步</button><button id="bn">下一步 ▶</button><button id="b1">⏭</button>
       <span id="pos" class="mu"></span><span style="flex:1"></span>
       <label>模型 <select id="ms"></select></label>
-      <label>Q head <select id="hs"></select></label>
       <button id="tl" title="收合/展開左側步驟清單 (快捷鍵: [)">⇤</button>
       <button id="tr" title="收合/展開右側資訊欄 (快捷鍵: ])">⇥</button>
       <button id="hk" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
@@ -602,7 +601,6 @@
     function render() {
       const st = steps[sel.step], g = Math.floor(sel.h / (cfg.Hq / cfg.Hkv));
       $('#pos').textContent = `步驟 ${sel.step + 1} / ${steps.length}`;
-      if ($('#hs')) $('#hs').value = sel.h;
       let li = '', last = -2; steps.forEach((s, i) => { if (s.layer != last) { last = s.layer; li += `<div class="lh">${s.layer < 0 ? 'Input' : s.layer == cfg.L ? 'Output' : 'Layer ' + s.layer}</div>` } li += `<div class="si${i == sel.step ? ' a' : ''}" data-s="${i}">${s.name}</div>` });
       $('#list').innerHTML = li; const a = $('#list .a'); a && a.scrollIntoView({ block: 'nearest' });
       let m = `<h2>${st.layer >= 0 && st.layer < cfg.L ? 'Layer ' + st.layer + ' · ' : ''}${st.name}</h2><div class="card"><div id="fx">\\[${st.tex}\\]</div></div><div class="mu">${st.desc}</div>`;
@@ -621,7 +619,7 @@
         <div class="mu" style="margin-bottom:8px">${mInfo.desc || ''}</div>
         <div class="row"><span class="mu">d_model</span><span>${c.d}</span></div>
         <div class="row"><span class="mu">層數 (L)</span><span>${c.L}</span></div>
-        <div class="row"><span class="mu">Q heads (Hq)</span><span>${c.Hq}</span></div>
+        <div class="row"><span class="mu">Q heads (Hq)</span><span style="display:inline-flex;align-items:center;gap:4px">${c.Hq} <span class="mu"> / 當前</span><select id="hs" style="padding:1px 5px">${[...Array(c.Hq).keys()].map(i => `<option value="${i}"${i == sel.h ? ' selected' : ''}>${i}</option>`).join('')}</select></span></div>
         <div class="row"><span class="mu">KV heads (Hkv)</span><span>${c.Hkv} (GQA ${c.Hq / c.Hkv}:1)</span></div>
         <div class="row"><span class="mu">head_dim (hd)</span><span>${c.hd}</span></div>
         <div class="row"><span class="mu">MLP 倍率 (ffm)</span><span>${c.ffm} (ff=${c.d * c.ffm})</span></div>
@@ -780,17 +778,23 @@
     $('#list').onclick = e => { const s = e.target.closest('.si'); s && go(+s.dataset.s) };
     $('#main').onclick = e => { const td = e.target.closest('td.cl'); if (td) { sel.mi = [+td.dataset.t, +td.dataset.i, +td.dataset.j]; render() } };
     $('#main').onchange = e => { const t = e.target; if (t.dataset.i != null) { X0[+t.dataset.i][+t.dataset.j] = parseFloat(t.value) || 0; recompute(false) } };
-    $('#hs').onchange = e => { sel.h = +e.target.value; sel.mi = null; render() };
     $('#ms').onchange = e => { loadModel(e.target.value, false); };
     $('#side').onchange = e => {
-      const t = e.target, k = t.dataset.k; if (!k) return;
+      const t = e.target;
+      if (t.id === 'hs') {
+        sel.h = +t.value;
+        sel.mi = null;
+        render();
+        return;
+      }
+      const k = t.dataset.k; if (!k) return;
       cfg[k] = +t.value;
       initInput(true);
       forward();
       sel.mi = null;
       render();
     };
-    function fillHs() { $('#hs').innerHTML = [...Array(cfg.Hq).keys()].map(i => `<option value="${i}"${i == sel.h ? ' selected' : ''}>${i}</option>`).join('') }
+    function fillHs() { if ($('#hs')) $('#hs').innerHTML = [...Array(cfg.Hq).keys()].map(i => `<option value="${i}"${i == sel.h ? ' selected' : ''}>${i}</option>`).join('') }
     function fillMs() {
       const models = window.TOY_MODELS || {};
       const keys = Object.keys(models);
