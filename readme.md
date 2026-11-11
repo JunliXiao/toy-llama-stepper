@@ -92,6 +92,34 @@ flowchart TD
 
 ---
 
+## 📁 專案目錄結構
+
+```text
+toy-llama-stepper/
+├── index.html               # 語意化 HTML 骨架
+├── css/
+│   └── style.css            # UI 樣式
+├── js/
+│   ├── vendor/
+│   │   └── tex-svg.min.js   # 第三方 MathJax 數學排版引擎
+│   ├── state.js             # 集中狀態管理
+│   ├── steps.js             # 步驟定義
+│   ├── model.js             # 模型推論的數學計算
+│   ├── view.js              # 視圖渲染
+│   └── app.js               # 應用程式入口、事件監聽
+├── models/
+│   ├── models-static.js     # 預設純靜態模型權重
+│   └── presets.js           # 動態模型生成腳本
+├── resources/
+│   ├── icon-dark.svg
+│   ├── icon-light.svg
+│   └── og-preview.png       # 超連結分享的預覽
+└── scripts/
+    └── build-static.js      # 靜態模型權重構建工具
+```
+
+---
+
 ## 🚀 快速開始與部署
 
 ### 1. 本地執行
