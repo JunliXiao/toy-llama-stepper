@@ -458,8 +458,21 @@
       font-weight: 600;
     }
   </style>
-  <script>window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }, svg: { fontCache: 'global' } };</script>
-  <script async src="./resources/tex-svg.min.js" onload="window.render&&render()"></script>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+      svg: { fontCache: 'global' },
+      startup: {
+        typeset: false,
+        ready: () => {
+          MathJax.startup.defaultReady();
+          const fx = document.querySelector('#fx');
+          if (fx && window.typeset) window.typeset(fx);
+        }
+      }
+    };
+  </script>
+  <script async src="./resources/tex-svg.min.js"></script>
   <!-- 預設載入純靜態模型權重 (開箱即用、無須執行期運算)；若本地開發想動態調整生成邏輯，可改用 presets.js -->
   <script src="./models/models-static.js"></script>
 </head>
@@ -609,6 +622,27 @@
     }
 
     /* ===== 渲染 ===== */
+    /* ===== MathJax 序列化佇列與快取清理 ===== */
+    let typesetQ = Promise.resolve();
+    function typeset(el) {
+      if (!el) return;
+      if (!window.MathJax || !window.MathJax.typesetPromise) {
+        if (window.MathJax?.startup?.promise) {
+          window.MathJax.startup.promise.then(() => typeset(el));
+        }
+        return;
+      }
+      typesetQ = typesetQ
+        .then(() => {
+          if (window.MathJax.typesetClear) window.MathJax.typesetClear([el]);
+          return window.MathJax.typesetPromise([el]);
+        })
+        .catch(console.error);
+    }
+    window.typeset = typeset;
+
+    let pendingFocus = null;
+
     const curItem = tn => tn.items[tn.by == 'q' ? sel.h : tn.by == 'kv' ? Math.floor(sel.h / (cfg.Hq / cfg.Hkv)) : 0];
     function matHTML(it, ti) {
       const m = it.m, fin = m.flat().filter(isFinite), mx = Math.max(1e-9, ...fin.map(Math.abs));
@@ -631,6 +665,7 @@
       return s
     }
     function render() {
+      const activeSideK = document.activeElement && document.activeElement.dataset?.k ? document.activeElement.dataset.k : null;
       const st = steps[sel.step], g = Math.floor(sel.h / (cfg.Hq / cfg.Hkv));
       $('#pos').textContent = `步驟 ${sel.step + 1} / ${steps.length}`;
       let li = '', last = -2; steps.forEach((s, i) => { if (s.layer != last) { last = s.layer; li += `<div class="lh">${s.layer < 0 ? 'Input' : s.layer == cfg.L ? 'Output' : 'Layer ' + s.layer}</div>` } li += `<div class="si${i == sel.step ? ' a' : ''}" data-s="${i}">${s.name}</div>` });
@@ -644,6 +679,14 @@
       });
       if (st.tensors.some(t => curItem(t).micro)) m += '<div class="mu" style="margin-top:6px">提示：點擊有底線游標的格子，可展開該格的逐項計算。</div>';
       $('#main').innerHTML = m;
+      if (pendingFocus) {
+        const targetInput = $(`#main input[data-i="${pendingFocus.i}"][data-j="${pendingFocus.j}"]`);
+        if (targetInput) {
+          targetInput.focus();
+          if (pendingFocus.select) targetInput.select();
+        }
+        pendingFocus = null;
+      }
       const c = cfg, op = (a, v) => a.map(x => `<option${x == v ? ' selected' : ''}>${x}</option>`).join('');
       const mInfo = (window.TOY_MODELS && window.TOY_MODELS[sel.model]) || { name: '自訂模型', desc: '' };
       $('#side').innerHTML = `
@@ -678,7 +721,12 @@
           </svg>
         </a>
       </div>`;
-      if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([$('#fx')]).catch(() => { });
+      if (activeSideK) {
+        const targetSideEl = $(`#side [data-k="${activeSideK}"]`);
+        if (targetSideEl) targetSideEl.focus();
+      }
+      const fx = $('#fx');
+      if (fx) typeset(fx);
     }
     function recompute(regenX) { if (regenX) initInput(true); forward(); sel.mi = null; render() }
     function go(i) { sel.step = Math.max(0, Math.min(steps.length - 1, i)); sel.mi = null; render() }
@@ -724,17 +772,21 @@
 
     /* ===== 全域鍵盤快捷鍵監聽 ===== */
     document.addEventListener('keydown', e => {
-      if (/INPUT|SELECT/.test(e.target.tagName)) return;
+      // 1. 若當前焦點在任何輸入元件，不觸發全域快捷鍵
+      if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
 
-      // ? 鍵（或 Shift + /）：開關快捷鍵指南
-      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      // 2. 若處於輸入法組字狀態 (IME composing)，不觸發
+      if (e.isComposing || e.keyCode === 229) return;
+
+      // ? 鍵（Shift + /）：開關快捷鍵指南
+      if (e.code === 'Slash' && e.shiftKey) {
         e.preventDefault();
         toggleModal();
         return;
       }
 
       // Esc 鍵：若指南開啟則關閉
-      if (e.key === 'Escape') {
+      if (e.code === 'Escape') {
         const el = $('#modal-kb');
         if (el && el.classList.contains('open')) {
           e.preventDefault();
@@ -747,22 +799,25 @@
       const modalOpen = $('#modal-kb') && $('#modal-kb').classList.contains('open');
       if (modalOpen) return;
 
+      // 單鍵操作（Q, W, [, ] 等）必須確保沒有按下 Ctrl/Meta/Alt，避免搶佔瀏覽器或系統快捷鍵 (如 Cmd+W, Cmd+Q, Cmd+[)
+      const noModifiers = !e.ctrlKey && !e.metaKey && !e.altKey;
+
       // [ 鍵：切換左側欄收合
-      if (e.key === '[') {
+      if (noModifiers && e.code === 'BracketLeft') {
         e.preventDefault();
         toggleL();
         return;
       }
 
       // ] 鍵：切換右側欄收合
-      if (e.key === ']') {
+      if (noModifiers && e.code === 'BracketRight') {
         e.preventDefault();
         toggleR();
         return;
       }
 
       // Q 鍵：Q head 循環 -1
-      if (e.key === 'q' || e.key === 'Q') {
+      if (noModifiers && e.code === 'KeyQ') {
         e.preventDefault();
         sel.h = (sel.h - 1 + cfg.Hq) % cfg.Hq;
         sel.mi = null;
@@ -771,7 +826,7 @@
       }
 
       // W 鍵：Q head 循環 +1
-      if (e.key === 'w' || e.key === 'W') {
+      if (noModifiers && e.code === 'KeyW') {
         e.preventDefault();
         sel.h = (sel.h + 1) % cfg.Hq;
         sel.mi = null;
@@ -780,13 +835,13 @@
       }
 
       // 左右方向鍵：上一步 / 下一步（支援 Ctrl / Cmd 極值跳轉）
-      if (e.key === 'ArrowRight') {
+      if (e.code === 'ArrowRight') {
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) go(steps.length - 1);
         else go(sel.step + 1);
         return;
       }
-      if (e.key === 'ArrowLeft') {
+      if (e.code === 'ArrowLeft') {
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) go(0);
         else go(sel.step - 1);
@@ -794,12 +849,12 @@
       }
 
       // 上下方向鍵：跨 Layer 切換同算子階段（Layer 0 頂部與 Layer 3 底部不動作）
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         e.preventDefault();
         const cur = steps[sel.step];
         if (!cur || cur.layer < 0 || cur.layer >= cfg.L) return;
 
-        const targetLayer = e.key === 'ArrowUp' ? cur.layer - 1 : cur.layer + 1;
+        const targetLayer = e.code === 'ArrowUp' ? cur.layer - 1 : cur.layer + 1;
         if (targetLayer < 0 || targetLayer >= cfg.L) return;
 
         const targetIdx = steps.findIndex(s => s.layer === targetLayer && s.name === cur.name);
@@ -809,7 +864,41 @@
     });
     $('#list').onclick = e => { const s = e.target.closest('.si'); s && go(+s.dataset.s) };
     $('#main').onclick = e => { const td = e.target.closest('td.cl'); if (td) { sel.mi = [+td.dataset.t, +td.dataset.i, +td.dataset.j]; render() } };
-    $('#main').onchange = e => { const t = e.target; if (t.dataset.i != null) { X0[+t.dataset.i][+t.dataset.j] = parseFloat(t.value) || 0; recompute(false) } };
+    $('#main').addEventListener('keydown', e => {
+      const t = e.target;
+      if (t.dataset.i == null) return;
+      const i = +t.dataset.i, j = +t.dataset.j;
+      const d = cfg.d, T = cfg.T;
+
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        let nextI = i, nextJ = j + (e.shiftKey ? -1 : 1);
+        if (nextJ >= d) { nextI++; nextJ = 0; }
+        else if (nextJ < 0) { nextI--; nextJ = d - 1; }
+
+        X0[i][j] = parseFloat(t.value) || 0;
+        if (nextI >= 0 && nextI < T) {
+          pendingFocus = { i: nextI, j: nextJ, select: true };
+        }
+        recompute(false);
+      } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        pendingFocus = null;
+        X0[i][j] = parseFloat(t.value) || 0;
+        t.blur();
+        recompute(false);
+      }
+    });
+    $('#main').onchange = e => {
+      const t = e.target;
+      if (t.dataset.i != null) {
+        const val = parseFloat(t.value) || 0;
+        if (X0[+t.dataset.i][+t.dataset.j] !== val) {
+          X0[+t.dataset.i][+t.dataset.j] = val;
+          recompute(false);
+        }
+      }
+    };
     $('#ms').onchange = e => { loadModel(e.target.value, false); };
     $('#side').onchange = e => {
       const t = e.target;
