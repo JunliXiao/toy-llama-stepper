@@ -51,7 +51,7 @@ flowchart TD
     subgraph MLPBlock [2. Feed-Forward Module: SwiGLU MLP]
         N2[MLP Pre-RMSNorm]
         GU[Gate & Up Projections]
-        SWI[SwiGLU Activation: SiLU(Gate) ⊙ Up]
+        SWI["SwiGLU Activation: SiLU(Gate) ⊙ Up"]
         DOWN[down_proj Back to d_model]
 
         N2 --> GU

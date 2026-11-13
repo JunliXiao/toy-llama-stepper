@@ -51,7 +51,7 @@ flowchart TD
     subgraph MLPBlock [2. 前饋網路模組 SwiGLU MLP]
         N2[MLP Pre-RMSNorm]
         GU[Gate and Up 雙路投影]
-        SWI[SwiGLU 激活 SiLU Gate ⊙ Up]
+        SWI["SwiGLU 活化: SiLU(Gate) ⊙ Up"]
         DOWN[down_proj 投影回 d_model]
 
         N2 --> GU
