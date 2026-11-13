@@ -1,39 +1,43 @@
 # Toy Llama Block Stepper
 
-一個輕量、全前端的 **LLM Transformer Block 逐步計算可視化與互動工具**。
+**English** | [繁體中文](./README.zh-Hant.md)
 
-本專案將標準的 Llama/Mistral 架構（包含 GQA、RoPE、SwiGLU MLP 與 RMSNorm）拆解為極小的維度，讓你可以**手動逐步觀測**、**點擊查看向量與矩陣內積細節**，並**即時編輯輸入矩陣 $X_0$** 來觀察數值流轉。
+A lightweight, pure-frontend **step-by-step calculation visualizer and interactive lab for LLM Transformer Blocks**.
 
----
+This project breaks down a standard Llama/Mistral architecture (including GQA, RoPE, SwiGLU MLP, and RMSNorm) into compact, human-scale dimensions so you can **step through operations manually**, **click any cell to inspect vector dot-product arithmetic**, and **live-edit the input matrix $X_0$** to observe how values flow across layers.
 
-## 🌟 特色
-
-* **零套件建置**：純原生 HTML/CSS/JavaScript + MathJax，無需 `npm install`，直接在瀏覽器開啟或上載至 GitHub Pages。
-* **特色模型切換**：內建「隨機基準模型」與「Previous-Token Head 機制模型」（示範關注前一個 Token 的注意力頭）。
-* **完整算術展開**：點擊矩陣中任意格子，即可展開查看該格的逐項乘加算數細節 (Micro view)。
-* **輸入與模型解耦**：模型架構與權重採獨立資產載入（支援純靜態載入），可隨時自由調整 `seq_len`、`seed` 或直接編輯 $X_0$ 矩陣，所有步驟即時連動重算。
-* **動態圖表**：即時繪製各 position 的 Residual Stream 範數 $\|x_t\|$ 變化折線圖。
-* **深淺色主題**：預設為淺色主題，支援手動 Toggle 🌓 切換深色模式。
-* **完整鍵盤快捷鍵**：支援三維立體導航（`←`/`→` 步驟推進、`Ctrl+←/→` 極值跳轉、`↑`/`↓` 跨層同階段對照、`Q`/`W` 循環切換 Q head），並內建 `⌨️` 快捷鍵指南彈窗（按 `?` 隨時開關）。
-* **雙側邊欄收合**：Header 提供 `⇤` 與 `⇥` 按鈕（快捷鍵 `[` 與 `]`），可隨時收合左側步驟清單或右側資訊欄，最大化主視圖空間。
+> 📐 **Design Philosophy & Architectural Invariants**: See [`docs/DESIGN.md`](./docs/DESIGN.md) ([繁體中文](./docs/DESIGN.zh-Hant.md)) for the project's core principles, non-negotiable constraints, and non-goals.
 
 ---
 
-## 📐 Transformer Block 算子架構圖
+## 🌟 Features
 
-本工具模擬的單層 Transformer Block 運算流程如下：
+* **No Build Step, Runs Anywhere**: Vanilla HTML/CSS/JavaScript + MathJax. No `npm install` needed—open directly in a browser or deploy straight to GitHub Pages.
+* **Mechanism Demo Presets**: Includes a "Random Baseline" model alongside models with hand-crafted mechanisms such as a "Previous-Token Head" (demonstrating an attention head specialized in attending to $t-1$) and a "SwiGLU Feature Gate".
+* **Full Arithmetic Drill-Down (Micro View)**: Click any cell in an output matrix to expand its exact term-by-term multiply-accumulate or softmax normalization steps.
+* **Model–Input Separation**: Model architectures and weights are loaded as independent static assets. Freely adjust `seq_len`, `seed`, or directly edit cells in $X_0$ with instant forward recomputation.
+* **Dynamic Residual Norm Chart**: Real-time SVG line chart tracking the residual stream L2 norm $\Vert{}x_t\Vert{}$ at each stage.
+* **Light & Dark Themes**: Defaults to light mode with a one-click `🌓` toggle for dark mode.
+* **Three-Axis Keyboard Navigation**: Navigate across steps (`←`/`→`), jump to endpoints (`Ctrl+←`/`→`), compare the same stage across layers (`↑`/`↓`), and cycle query heads (`Q`/`W`), with a built-in shortcut guide modal (`?`).
+* **Collapsible Sidebars**: Toggle the left step list (`[` or `⇤`) and right inspector panel (`]` or `⇥`) at any time to maximize viewport space.
+
+---
+
+## 📐 Transformer Block Architecture
+
+Each layer’s Transformer block follows this flow:
 
 ```mermaid
 flowchart TD
-    X[輸入 Residual Stream X]
+    X[Input Residual Stream X]
 
-    subgraph AttnBlock [1. 注意力模組 GQA + RoPE]
+    subgraph AttnBlock [1. Attention Module: GQA + RoPE]
         N1[Attn Pre-RMSNorm]
-        QKV[Q / K / V 線性投影]
-        ROPE[Q and K 注入 RoPE 旋轉位置編碼]
+        QKV[Q / K / V Linear Projections]
+        ROPE[Apply RoPE to Q & K]
         SCORE[Scores + Causal Mask + Softmax]
-        AV[加權和 A · V]
-        O[o_proj 輸出投影]
+        AV[Weighted Sum A · V]
+        O[o_proj Output Projection]
 
         N1 --> QKV
         QKV --> ROPE
@@ -44,11 +48,11 @@ flowchart TD
 
     ADD1((+ Residual Add))
 
-    subgraph MLPBlock [2. 前饋網路模組 SwiGLU MLP]
+    subgraph MLPBlock [2. Feed-Forward Module: SwiGLU MLP]
         N2[MLP Pre-RMSNorm]
-        GU[Gate and Up 雙路投影]
-        SWI[SwiGLU 激活 SiLU Gate ⊙ Up]
-        DOWN[down_proj 投影回 d_model]
+        GU[Gate & Up Projections]
+        SWI[SwiGLU Activation: SiLU(Gate) ⊙ Up]
+        DOWN[down_proj Back to d_model]
 
         N2 --> GU
         GU --> SWI
@@ -56,7 +60,7 @@ flowchart TD
     end
 
     ADD2((+ Residual Add))
-    OUT[輸出至下一層 Residual Stream]
+    OUT[Output to Next Layer Residual Stream]
 
     X --> N1
     X --> ADD1
@@ -71,66 +75,71 @@ flowchart TD
 
 ---
 
-## ⚙️ 模型規格與輸入設定
+## ⚙️ Model Specifications & Input Settings
 
-### 1. 模型規格（由模型決定，唯讀展示）
-| 參數 | 預設值 | 說明 |
+### 1. Model Specifications (Read-Only, Defined by Preset)
+| Parameter | Default | Description |
 | :--- | :--- | :--- |
-| `d_model` | `16` | 隱藏層向量維度（固定） |
-| `L` | `4` | Transformer 層數（固定） |
-| `Hq` | `4` | Query Heads 數量 |
-| `Hkv` | `2` | Key/Value Heads 數量 (GQA 共享比例 `Hq/Hkv`) |
-| `hd` | `4` | Head Dimension 向量維度 |
-| `ffm` | `3` | MLP 隱藏層維度倍率 (`d_model * ffm`) |
-| `theta` | `10000` | RoPE 的基底角頻率 $\Theta$ |
+| `d_model` | `16` | Hidden dimension (fixed) |
+| `L` | `4` | Number of Transformer layers (fixed) |
+| `Hq` | `4` | Number of Query heads |
+| `Hkv` | `2` | Number of Key/Value heads (GQA sharing ratio `Hq / Hkv`) |
+| `hd` | `4` | Head dimension |
+| `ffm` | `3` | MLP hidden dimension multiplier (`d_model * ffm`) |
+| `theta` | `10000` | RoPE base $\Theta$ |
 
-### 2. 輸入與推論設定（可於側邊欄互動調整）
-| 參數 | 預設值 | 說明 |
+### 2. Input & Inference Settings (Interactive in Right Sidebar)
+| Parameter | Default | Description |
 | :--- | :--- | :--- |
-| `T` (seq_len) | `5` | 序列長度（Token 數，支援 3~8） |
-| `seed` | `7` | 輸入矩陣 $X_0$ 生成種子 |
+| `T` (`seq_len`) | `5` | Sequence length in tokens (range: 3–8) |
+| `seed` | `7` | PRNG seed for generating the input matrix $X_0$ |
 
 ---
 
-## 📁 專案目錄結構
+## 📁 Project Directory Structure
 
 ```text
 toy-llama-stepper/
-├── index.html               # 語意化 HTML 骨架
+├── index.html               # Semantic HTML shell
+├── README.md
+├── README.zh-Hant.md
+├── docs/
+│   ├── DESIGN.md
+│   └── DESIGN.zh-Hant.md
 ├── css/
-│   └── style.css            # UI 樣式
+│   └── style.css            # UI styles & theme variables
 ├── js/
 │   ├── vendor/
-│   │   └── tex-svg.min.js   # 第三方 MathJax 數學排版引擎
-│   ├── state.js             # 集中狀態管理
-│   ├── steps.js             # 步驟定義
-│   ├── model.js             # 模型推論的數學計算
-│   ├── view.js              # 視圖渲染
-│   └── app.js               # 應用程式入口、事件監聽
+│   │   └── tex-svg.min.js   # Third-party MathJax rendering engine
+│   ├── state.js             # Centralized state management
+│   ├── steps.js             # Step metadata & formula templates
+│   ├── model.js             # Pure math & forward inference engine
+│   ├── view.js              # DOM & SVG chart rendering
+│   └── app.js               # Entry point & event listeners
 ├── models/
-│   ├── models-static.js     # 預設純靜態模型權重
-│   └── presets.js           # 動態模型生成腳本
+│   ├── models-static.js     # Prebuilt static model weights
+│   └── presets.js           # Dynamic model generator script
 ├── resources/
 │   ├── icon-dark.svg
 │   ├── icon-light.svg
-│   └── og-preview.png       # 超連結分享的預覽
+│   └── og-preview.png       # Open Graph link preview image
 └── scripts/
-    └── build-static.js      # 靜態模型權重構建工具
+    └── build-static.js      # Static weight build utility
 ```
 
 ---
 
-## 🚀 快速開始與部署
+## 🚀 Quick Start & Deployment
 
-### 1. 本地執行
-無需安裝任何環境，複製專案並用瀏覽器開啟：
+### 1. Run Locally
+No environment setup required—clone the repository and open `index.html` directly in your browser:
 ```bash
 git clone https://github.com/JunliXiao/toy-llama-stepper.git
-# 直接用瀏覽器開啟 index.html 即可
+# Open index.html directly in your browser
 ```
-若要透過 `scripts/build-static.js` 生成權重的靜態檔案，則需安裝 node
+*(Node.js is only required if you want to regenerate static weight files via `scripts/build-static.js`.)*
 
-### 2. GitHub Pages 部署
-1. 將專案中的單頁檔案命名為 `index.html`。
-2. 推送至 GitHub Repository。
-3. 至 Repo 的 **Settings** -> **Pages** -> 選擇 `main` branch 根目錄 (`/root`) 保存即可上線！
+### 2. Deploy to GitHub Pages
+1. Push the repository to GitHub.
+2. Go to **Settings** -> **Pages**.
+3. Select the `main` branch and root directory (`/root`), then save to publish.
