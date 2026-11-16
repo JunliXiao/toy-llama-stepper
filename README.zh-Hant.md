@@ -115,7 +115,8 @@ toy-llama-stepper/
 │   ├── steps.js             # 步驟定義
 │   ├── model.js             # 模型推論的數學計算
 │   ├── view.js              # 視圖渲染
-│   └── app.js               # 應用程式入口、事件監聽
+│   ├── app.js               # 應用程式入口、事件監聽
+│   └── i18n.js
 ├── models/
 │   ├── models-static.js     # 預設純靜態模型權重
 │   └── presets.js           # 動態模型生成腳本

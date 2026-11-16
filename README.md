@@ -115,7 +115,8 @@ toy-llama-stepper/
 │   ├── steps.js             # Step metadata & formula templates
 │   ├── model.js             # Pure math & forward inference engine
 │   ├── view.js              # DOM & SVG chart rendering
-│   └── app.js               # Entry point & event listeners
+│   ├── app.js               # Entry point & event listeners
+│   └── i18n.js
 ├── models/
 │   ├── models-static.js     # Prebuilt static model weights
 │   └── presets.js           # Dynamic model generator script
