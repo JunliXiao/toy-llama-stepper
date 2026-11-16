@@ -58,21 +58,30 @@
     const { T, d, Hq, Hkv, hd, L, ffm, theta } = cfg;
     const grp = Hq / Hkv;
     const stepsMeta = global.ToyLlama.steps;
-    const stepsTpl = stepsMeta ? stepsMeta.templates : null;
+    const stepsTpl = stepsMeta ? stepsMeta.templates : {};
     const statsFn = stepsMeta ? stepsMeta.stats : null;
+    const t = global.ToyLlama.i18n ? global.ToyLlama.i18n.t : (k => k);
 
     S.steps = [];
     S.ck = [];
     let x = X0;
 
-    const P = (layer, name, tex, desc, tensors, st) =>
-      S.steps.push({ layer, name, tex, desc, tensors, st, ci: S.ck.length - 1 });
+    const P = (id, layer, tensors, st, descArgs = []) =>
+      S.steps.push({
+        id,
+        layer,
+        name: t(`steps.${id}.name`),
+        tex: stepsTpl[id]?.tex || '',
+        desc: t(`steps.${id}.desc`, ...descArgs),
+        tensors,
+        st,
+        ci: S.ck.length - 1
+      });
     const R = n => [...Array(n).keys()];
 
     // 1. Input X0
     S.ck.push({ x, label: 'X₀' });
-    const tX0 = stepsTpl ? stepsTpl.input_x0 : { name: 'Input X₀', tex: '', desc: '' };
-    P(-1, tX0.name, tX0.tex, tX0.desc, [{ label: 'X₀（T×d，可編輯）', items: [{ m: x, edit: true }] }]);
+    P('input_x0', -1, [{ label: t('tensors.x0_edit'), items: [{ m: x, edit: true }] }]);
 
     // Layers 0..L-1
     for (let l = 0; l < L; l++) {
@@ -80,10 +89,9 @@
       const n1 = rms(x, w.g1);
 
       // Attn RMSNorm
-      const tAttnNorm = stepsTpl.attn_rmsnorm;
-      P(l, tAttnNorm.name, tAttnNorm.tex, tAttnNorm.desc, [
-        { label: 'x（residual stream）', items: [{ m: x }] },
-        { label: 'x̂ = RMSNorm(x)', items: [{ m: n1 }] }
+      P('attn_rmsnorm', l, [
+        { label: t('tensors.x_res'), items: [{ m: x }] },
+        { label: t('tensors.x_norm'), items: [{ m: n1 }] }
       ]);
 
       // Q / K / V Projections
@@ -91,29 +99,26 @@
       const Q = R(Hq).map(h => item(n1, tq.slice(h * hd, h * hd + hd), 'x̂', 'Wq'));
       const K = R(Hkv).map(g => item(n1, tk.slice(g * hd, g * hd + hd), 'x̂', 'Wk'));
       const V = R(Hkv).map(g => item(n1, tv.slice(g * hd, g * hd + hd), 'x̂', 'Wv'));
-      const tQKV = stepsTpl.qkv_proj;
-      P(l, tQKV.name, tQKV.tex, typeof tQKV.desc === 'function' ? tQKV.desc(Hq, Hkv, grp) : tQKV.desc, [
+      P('qkv_proj', l, [
         { label: 'Q', by: 'q', items: Q },
         { label: 'K', by: 'kv', items: K },
         { label: 'V', by: 'kv', items: V }
-      ]);
+      ], undefined, [Hq, Hkv, grp]);
 
       // RoPE
       const Qr = Q.map(o => rope(o.m, hd, theta));
       const Kr = K.map(o => rope(o.m, hd, theta));
-      const ang = R(T).map(t => R(hd / 2).map(i => (t * Math.pow(theta, (-2 * i) / hd) * 180 / Math.PI) % 360));
-      const tRope = stepsTpl.rope;
-      P(l, tRope.name, tRope.tex, tRope.desc, [
-        { label: 'Q（RoPE 前）', by: 'q', items: Q },
-        { label: "Q′（RoPE 後）", by: 'q', items: Qr.map(m => ({ m })) },
-        { label: "K′（RoPE 後）", by: 'kv', items: Kr.map(m => ({ m })) },
-        { label: '旋轉角 mθᵢ（度，mod 360）', items: [{ m: ang }] }
+      const ang = R(T).map(pos => R(hd / 2).map(i => (pos * Math.pow(theta, (-2 * i) / hd) * 180 / Math.PI) % 360));
+      P('rope', l, [
+        { label: t('tensors.q_before_rope'), by: 'q', items: Q },
+        { label: t('tensors.q_after_rope'), by: 'q', items: Qr.map(m => ({ m })) },
+        { label: t('tensors.k_after_rope'), by: 'kv', items: Kr.map(m => ({ m })) },
+        { label: t('tensors.rope_angles'), items: [{ m: ang }] }
       ]);
 
       // Scores QK^T
       const S_arr = Qr.map((q, h) => item(q, Kr[Math.floor(h / grp)], "q′", "k′", Math.sqrt(hd)));
-      const tScores = stepsTpl.scores;
-      P(l, tScores.name, tScores.tex, tScores.desc, [{ label: 'S = Q′K′ᵀ/√d_h（mask 前）', by: 'q', items: S_arr }]);
+      P('scores', l, [{ label: t('tensors.scores_pre_mask'), by: 'q', items: S_arr }]);
 
       // Causal Mask + Softmax
       const Sm = S_arr.map(o => o.m.map((r, i) => r.map((v, j) => (j > i ? -Infinity : v))));
@@ -131,44 +136,46 @@
         micro: (i, j) => {
           const e = Sm[h][i].map(v => Math.exp(v));
           const s = e.reduce((a, b) => a + b);
-          return `softmax 第 ${i} 列：exp(S)=[${e.slice(0, i + 1).map(f2).join(', ')}]，Σ=${f2(s)}，A[t${i}][${j}] = ${f2(e[j])}/${f2(s)} = <b>${f2(M[i][j])}</b>`;
+          return t(
+            'tensors.softmax_micro',
+            i,
+            e.slice(0, i + 1).map(f2).join(', '),
+            f2(s),
+            j,
+            f2(e[j]),
+            f2(M[i][j])
+          );
         }
       }));
-      const tSoftmax = stepsTpl.causal_softmax;
-      P(l, tSoftmax.name, tSoftmax.tex, tSoftmax.desc, [
-        { label: 'S（mask 後）', by: 'q', items: Sm.map(m => ({ m })) },
+      P('causal_softmax', l, [
+        { label: t('tensors.scores_post_mask'), by: 'q', items: Sm.map(m => ({ m })) },
         { label: 'A = softmax(S)', by: 'q', items: Ai }
       ]);
 
       // Weighted sum A * V
       const O = A.map((a, h) => item(a, tr(V[Math.floor(h / grp)].m), 'A', 'V'));
-      const tWeighted = stepsTpl.weighted_sum;
-      P(l, tWeighted.name, tWeighted.tex, tWeighted.desc, [
+      P('weighted_sum', l, [
         { label: 'A', by: 'q', items: Ai },
-        { label: 'V（對應的 KV group）', by: 'kv', items: V },
+        { label: t('tensors.v_kv_group'), by: 'kv', items: V },
         { label: 'O = A·V', by: 'q', items: O }
       ]);
 
       // o_proj
-      const C = R(T).map(t => O.flatMap(o => o.m[t]));
+      const C = R(T).map(pos => O.flatMap(o => o.m[pos]));
       const ao = item(C, tr(w.Wo), 'C', 'Wo');
-      const tOproj = stepsTpl.o_proj;
-      P(l, tOproj.name, tOproj.tex, tOproj.desc, [
-        { label: `C = concat(heads)（T×${Hq * hd}）`, items: [{ m: C }] },
+      P('o_proj', l, [
+        { label: t('tensors.concat_heads', Hq * hd), items: [{ m: C }] },
         { label: 'attn_out = C·W_O', items: [ao] }
       ]);
 
       // Residual Add (Attn)
       const x2 = add(x, ao.m);
       S.ck.push({ x: x2, label: `L${l} attn` });
-      const tResAttn = stepsTpl.residual_attn;
       P(
+        'residual_attn',
         l,
-        tResAttn.name,
-        tResAttn.tex,
-        tResAttn.desc,
         [
-          { label: 'x（前）', items: [{ m: x }] },
+          { label: t('tensors.x_prev'), items: [{ m: x }] },
           { label: 'Δ = attn_out', items: [ao] },
           { label: 'x + Δ', items: [{ m: x2 }] }
         ],
@@ -178,26 +185,23 @@
       // MLP RMSNorm
       x = x2;
       const n2 = rms(x, w.g2);
-      const tMlpNorm = stepsTpl.mlp_rmsnorm;
-      P(l, tMlpNorm.name, tMlpNorm.tex, tMlpNorm.desc, [
+      P('mlp_rmsnorm', l, [
         { label: 'x', items: [{ m: x }] },
-        { label: 'x̂ = RMSNorm(x)', items: [{ m: n2 }] }
+        { label: t('tensors.x_norm'), items: [{ m: n2 }] }
       ]);
 
       // Gate / Up Projections
       const G = item(n2, tr(w.Wg), 'x̂', 'Wg');
       const U = item(n2, tr(w.Wu), 'x̂', 'Wu');
-      const tGateUp = stepsTpl.gate_up_proj;
-      P(l, tGateUp.name, tGateUp.tex, typeof tGateUp.desc === 'function' ? tGateUp.desc(d, ffm) : tGateUp.desc, [
+      P('gate_up_proj', l, [
         { label: 'G = gate', items: [G] },
         { label: 'U = up', items: [U] }
-      ]);
+      ], undefined, [d, ffm]);
 
       // SwiGLU
       const Sg = G.m.map(r => r.map(silu));
       const Hh = Sg.map((r, i) => r.map((v, j) => v * U.m[i][j]));
-      const tSwiglu = stepsTpl.swiglu;
-      P(l, tSwiglu.name, tSwiglu.tex, tSwiglu.desc, [
+      P('swiglu', l, [
         { label: 'silu(G)', items: [{ m: Sg }] },
         { label: 'U', items: [U] },
         { label: 'H = silu(G) ⊙ U', items: [{ m: Hh }] }
@@ -205,20 +209,16 @@
 
       // Down Proj
       const Dn = item(Hh, tr(w.Wd), 'h', 'Wd');
-      const tDown = stepsTpl.down_proj;
-      P(l, tDown.name, tDown.tex, tDown.desc, [{ label: 'mlp_out = H·W_down', items: [Dn] }]);
+      P('down_proj', l, [{ label: 'mlp_out = H·W_down', items: [Dn] }]);
 
       // Residual Add (MLP)
       const x3 = add(x, Dn.m);
       S.ck.push({ x: x3, label: `L${l} mlp` });
-      const tResMlp = stepsTpl.residual_mlp;
       P(
+        'residual_mlp',
         l,
-        tResMlp.name,
-        tResMlp.tex,
-        tResMlp.desc,
         [
-          { label: 'x（前）', items: [{ m: x }] },
+          { label: t('tensors.x_prev'), items: [{ m: x }] },
           { label: 'Δ = mlp_out', items: [Dn] },
           { label: 'x + Δ', items: [{ m: x3 }] }
         ],
@@ -231,8 +231,7 @@
     // Final RMSNorm
     const nf = rms(x, W.gf);
     S.ck.push({ x: nf, label: 'final' });
-    const tFinal = stepsTpl.final_rmsnorm;
-    P(L, tFinal.name, tFinal.tex, tFinal.desc, [
+    P('final_rmsnorm', L, [
       { label: 'x', items: [{ m: x }] },
       { label: 'output', items: [{ m: nf }] }
     ]);

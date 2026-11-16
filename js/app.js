@@ -13,6 +13,12 @@
   $('#bp').onclick = () => state.go(state.sel.step - 1);
   $('#bn').onclick = () => state.go(state.sel.step + 1);
 
+  // 語系切換 (繁體中文 / English)
+  $('#lang').onclick = () => {
+    const nextLang = state.sel.lang === 'zh-Hant' ? 'en' : 'zh-Hant';
+    state.setLang(nextLang);
+  };
+
   // 主題切換 (深淺模式)
   $('#th').onclick = () => {
     const r = document.documentElement;
@@ -105,7 +111,7 @@
     const k = t.dataset.k;
     if (!k) return;
     state.cfg[k] = +t.value;
-    state.initInput(true);
+    state.initInput();
     state.recompute(false);
   };
 
@@ -187,7 +193,7 @@
       return;
     }
 
-    // 上下方向鍵：跨 Layer 切換同算子階段
+    // 上下方向鍵：跨 Layer 切換同算子階段（以固定算子 id 比對，完全與語言無關）
     if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
       e.preventDefault();
       const cur = state.steps[state.sel.step];
@@ -196,7 +202,7 @@
       const targetLayer = e.code === 'ArrowUp' ? cur.layer - 1 : cur.layer + 1;
       if (targetLayer < 0 || targetLayer >= state.cfg.L) return;
 
-      const targetIdx = state.steps.findIndex(s => s.layer === targetLayer && s.name === cur.name);
+      const targetIdx = state.steps.findIndex(s => s.layer === targetLayer && s.id === cur.id);
       if (targetIdx !== -1) state.go(targetIdx);
       return;
     }

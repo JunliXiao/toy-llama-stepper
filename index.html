@@ -63,13 +63,14 @@
 <body>
   <div id="app">
     <header><b>Toy Llama Stepper</b>
-      <button id="b0">⏮</button><button id="bp">◀ 上一步</button><button id="bn">下一步 ▶</button><button id="b1">⏭</button>
+      <button id="b0" data-i18n-title="ui.first_step" title="跳至第一步 (快捷鍵: Ctrl+←)">⏮</button><button id="bp" data-i18n="ui.prev">◀ 上一步</button><button id="bn" data-i18n="ui.next">下一步 ▶</button><button id="b1" data-i18n-title="ui.last_step" title="跳至最後一步 (快捷鍵: Ctrl+→)">⏭</button>
       <span id="pos" class="mu"></span><span style="flex:1"></span>
-      <label>模型 <select id="ms"></select></label>
+      <label><span data-i18n="ui.model_label">模型</span> <select id="ms"></select></label>
       <button id="tl" title="收合/展開左側步驟清單 (快捷鍵: [)">⇤</button>
       <button id="tr" title="收合/展開右側資訊欄 (快捷鍵: ])">⇥</button>
-      <button id="hk" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
-      <button id="th">🌓</button>
+      <button id="lang" title="Switch to English / 切換為英文">EN</button>
+      <button id="hk" data-i18n-title="ui.hk_title" title="鍵盤快捷鍵指南 (快捷鍵: ?)">⌨️</button>
+      <button id="th" data-i18n-title="ui.theme_title" title="切換深淺色主題">🌓</button>
     </header>
     <nav id="list"></nav>
     <main id="main"></main>
@@ -79,21 +80,22 @@
   <div id="modal-kb" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-hd">
-        <b>⌨️ 鍵盤快捷鍵指南</b>
+        <b data-i18n="modal.title">⌨️ 鍵盤快捷鍵指南</b>
         <button id="modal-close" class="modal-close">✕</button>
       </div>
-      <div class="modal-sec">導航操作</div>
-      <div class="modal-row"><span><span class="kbd">←</span> / <span class="kbd">→</span></span><span>上一步 / 下一步</span></div>
-      <div class="modal-row"><span><span class="kbd">Ctrl</span> + <span class="kbd">←</span> / <span class="kbd">→</span></span><span>跳至第一步 (X₀) / 最後一步</span></div>
-      <div class="modal-row"><span><span class="kbd">↑</span> / <span class="kbd">↓</span></span><span>跨 Layer 同階段移動</span></div>
-      <div class="modal-sec">介面與觀察維度</div>
-      <div class="modal-row"><span><span class="kbd">[</span> / <span class="kbd">]</span></span><span>收合/展開左側欄 / 右側欄</span></div>
-      <div class="modal-row"><span><span class="kbd">Q</span> / <span class="kbd">W</span></span><span>循環切換上一個 / 下一個 Q head</span></div>
-      <div class="modal-ft">提示：按 <span class="kbd">?</span> 開關此指南，按 <span class="kbd">Esc</span> 關閉。</div>
+      <div class="modal-sec" data-i18n="modal.sec_nav">導航操作</div>
+      <div class="modal-row"><span><span class="kbd">←</span> / <span class="kbd">→</span></span><span data-i18n="modal.nav_step">上一步 / 下一步</span></div>
+      <div class="modal-row"><span><span class="kbd">Ctrl</span> + <span class="kbd">←</span> / <span class="kbd">→</span></span><span data-i18n="modal.nav_end">跳至第一步 (X₀) / 最後一步</span></div>
+      <div class="modal-row"><span><span class="kbd">↑</span> / <span class="kbd">↓</span></span><span data-i18n="modal.nav_layer">跨 Layer 同階段移動</span></div>
+      <div class="modal-sec" data-i18n="modal.sec_view">介面與觀察維度</div>
+      <div class="modal-row"><span><span class="kbd">[</span> / <span class="kbd">]</span></span><span data-i18n="modal.view_sidebars">收合/展開左側欄 / 右側欄</span></div>
+      <div class="modal-row"><span><span class="kbd">Q</span> / <span class="kbd">W</span></span><span data-i18n="modal.view_head">循環切換上一個 / 下一個 Q head</span></div>
+      <div class="modal-ft" data-i18n-html="modal.footer">提示：按 <span class="kbd">?</span> 開關此指南，按 <span class="kbd">Esc</span> 關閉。</div>
     </div>
   </div>
 
   <!-- 應用程式模組 (Scheme A Namespace Architecture)；載入順序需注意依賴關係 -->
+  <script src="./js/i18n.js"></script>
   <script src="./js/steps.js"></script>
   <script src="./js/model.js"></script>
   <script src="./js/state.js"></script>

@@ -7,6 +7,7 @@
   global.ToyLlama = global.ToyLlama || {};
 
   const $ = s => document.querySelector(s);
+  const t = (path, ...args) => (global.ToyLlama.i18n ? global.ToyLlama.i18n.t(path, ...args) : path);
 
   /* ===== MathJax 序列化佇列與快取清理 ===== */
   let typesetQ = Promise.resolve();
@@ -64,22 +65,50 @@
     let s = `<svg viewBox="0 0 ${w} ${h}" width="100%">`;
     const ci = S.steps[S.sel.step] ? S.steps[S.sel.step].ci : 0;
     s += `<rect x="${X(ci) - 3}" y="6" width="6" height="${h - 24}" fill="rgba(var(--pos),.25)"/>`;
-    for (let t = 0; t < S.cfg.T; t++) {
-      s += `<polyline fill="none" stroke="hsl(${(t * 360) / S.cfg.T},65%,52%)" stroke-width="1.6" points="${S.ck.map((c, i) => X(i) + ',' + Y(nrm(c.x[t]))).join(' ')}"/>`;
+    for (let pos = 0; pos < S.cfg.T; pos++) {
+      s += `<polyline fill="none" stroke="hsl(${(pos * 360) / S.cfg.T},65%,52%)" stroke-width="1.6" points="${S.ck.map((c, i) => X(i) + ',' + Y(nrm(c.x[pos]))).join(' ')}"/>`;
     }
     s += S.ck.map((c, i) => `<text x="${X(i)}" y="${h - 4}" font-size="8" text-anchor="middle" fill="var(--mu)">${c.label.replace(/^L(\d) (.)/, '$1$2')}</text>`).join('');
     s += `<text x="2" y="12" font-size="9" fill="var(--mu)">${f2(mx)}</text></svg>`;
     return s;
   }
 
-  function render() {
+  function applyStaticI18n() {
+    const S = global.ToyLlama.state;
+    document.documentElement.lang = S.sel.lang;
+    document.title = t('ui.doc_title');
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+      el.innerHTML = t(el.dataset.i18nHtml);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      el.title = t(el.dataset.i18nTitle);
+    });
+
+    const appEl = $('#app');
+    if (appEl) {
+      if ($('#tl')) $('#tl').title = appEl.classList.contains('hide-l') ? t('ui.toggle_l_show') : t('ui.toggle_l_hide');
+      if ($('#tr')) $('#tr').title = appEl.classList.contains('hide-r') ? t('ui.toggle_r_show') : t('ui.toggle_r_hide');
+    }
+
+    const langBtn = $('#lang');
+    if (langBtn) {
+      langBtn.textContent = t('ui.lang_btn');
+      langBtn.title = t('ui.lang_title');
+    }
+  }
+
+  function render(opts = {}) {
     const S = global.ToyLlama.state;
     const activeSideK = document.activeElement && document.activeElement.dataset?.k ? document.activeElement.dataset.k : null;
     const st = S.steps[S.sel.step];
     if (!st) return;
 
     const g = Math.floor(S.sel.h / (S.cfg.Hq / S.cfg.Hkv));
-    $('#pos').textContent = `步驟 ${S.sel.step + 1} / ${S.steps.length}`;
+    $('#pos').textContent = t('ui.step_pos', S.sel.step + 1, S.steps.length);
 
     // 左側步驟清單
     let li = '', last = -2;
@@ -94,21 +123,34 @@
     const a = $('#list .a');
     if (a) a.scrollIntoView({ block: 'nearest' });
 
+    // 切換語言時保留已渲染的 MathJax 公式卡片，達到零閃爍體驗
+    const fxEl = $('#fx');
+    const savedFxCard = opts.keepMath && fxEl ? fxEl.parentElement : null;
+
     // 主畫面內容
-    let m = `<h2>${st.layer >= 0 && st.layer < S.cfg.L ? 'Layer ' + st.layer + ' · ' : ''}${st.name}</h2><div class="card"><div id="fx">\\[${st.tex}\\]</div></div><div class="mu">${st.desc}</div>`;
+    const formulaBlock = savedFxCard ? '<div id="fx-slot"></div>' : `<div class="card"><div id="fx">\\[${st.tex}\\]</div></div>`;
+    let m = `<h2>${st.layer >= 0 && st.layer < S.cfg.L ? 'Layer ' + st.layer + ' · ' : ''}${st.name}</h2>${formulaBlock}<div class="mu">${st.desc}</div>`;
     if (st.st) m += `<div class="card st">${st.st}</div>`;
     st.tensors.forEach((tn, ti) => {
       const it = curItem(tn);
-      const lb = tn.by === 'q' ? ` — head ${S.sel.h}` : tn.by === 'kv' ? ` — KV group ${g}` : '';
+      const lb = tn.by === 'q' ? t('ui.head_badge', S.sel.h) : tn.by === 'kv' ? t('ui.kv_badge', g) : '';
       m += `<div class="tl">${tn.label}${lb}</div>${matHTML(it, ti)}`;
       if (S.sel.mi && S.sel.mi[0] === ti && it.micro) {
         m += `<div class="mic">${it.micro(S.sel.mi[1], S.sel.mi[2])}</div>`;
       }
     });
-    if (st.tensors.some(t => curItem(t).micro)) {
-      m += '<div class="mu" style="margin-top:6px">提示：點擊有底線游標的格子，可展開該格的逐項計算。</div>';
+    if (st.tensors.some(tn => curItem(tn).micro)) {
+      m += `<div class="mu" style="margin-top:6px">${t('ui.micro_hint')}</div>`;
     }
     $('#main').innerHTML = m;
+
+    if (savedFxCard) {
+      const slot = $('#fx-slot');
+      if (slot) slot.replaceWith(savedFxCard);
+    } else {
+      const newFx = $('#fx');
+      if (newFx) typeset(newFx);
+    }
 
     // 恢復矩陣編輯格焦點
     if (S.pendingFocus) {
@@ -123,27 +165,32 @@
     // 右側資訊欄
     const c = S.cfg;
     const op = (arr, val) => arr.map(x => `<option${x === val ? ' selected' : ''}>${x}</option>`).join('');
-    const mInfo = (global.TOY_MODELS && global.TOY_MODELS[S.sel.model]) || { name: '自訂模型', desc: '' };
+    const rawModel = global.TOY_MODELS && global.TOY_MODELS[S.sel.model];
+    const mNameKey = `models.${S.sel.model}.name`;
+    const mDescKey = `models.${S.sel.model}.desc`;
+    const mName = t(mNameKey) !== mNameKey ? t(mNameKey) : (rawModel?.name || t('ui.custom_model'));
+    const mDesc = t(mDescKey) !== mDescKey ? t(mDescKey) : (rawModel?.desc || '');
+
     $('#side').innerHTML = `
-      <h3>${mInfo.name}</h3>
-      <div class="mu" style="margin-bottom:8px">${mInfo.desc || ''}</div>
-      <div class="row"><span class="mu">維度數 (d_model)</span><span>${c.d}</span></div>
-      <div class="row"><span class="mu">層數 (L)</span><span>${c.L}</span></div>
-      <div class="row"><span class="mu">Q heads (Hq)</span><span style="display:inline-flex;align-items:center;gap:4px">${c.Hq} <span class="mu"> / 當前</span><select id="hs" style="padding:1px 5px">${[...Array(c.Hq).keys()].map(i => `<option value="${i}"${i === S.sel.h ? ' selected' : ''}>${i}</option>`).join('')}</select></span></div>
-      <div class="row"><span class="mu">KV heads (Hkv)</span><span>${c.Hkv} (GQA ${c.Hq / c.Hkv}:1)</span></div>
-      <div class="row"><span class="mu">head_dim (hd)</span><span>${c.hd}</span></div>
-      <div class="row"><span class="mu">MLP 倍率 (ffm)</span><span>${c.ffm} (ff=${c.d * c.ffm})</span></div>
-      <div class="row"><span class="mu">RoPE θ</span><span>${c.theta}</span></div>
-      <h3 class="tip-title">輸入設定 (Input / Prompt) <span class="info-icon">ⓘ</span>
-        <span class="tip-box">調整 seq_len 或 seed 會重設 X₀，不影響當前模型權重。</span>
+      <h3>${mName}</h3>
+      <div class="mu" style="margin-bottom:8px">${mDesc}</div>
+      <div class="row"><span class="mu">${t('ui.dim_label')}</span><span>${c.d}</span></div>
+      <div class="row"><span class="mu">${t('ui.layers_label')}</span><span>${c.L}</span></div>
+      <div class="row"><span class="mu">${t('ui.q_heads_label')}</span><span style="display:inline-flex;align-items:center;gap:4px">${c.Hq} <span class="mu"> / ${t('ui.current_head')}</span><select id="hs" style="padding:1px 5px">${[...Array(c.Hq).keys()].map(i => `<option value="${i}"${i === S.sel.h ? ' selected' : ''}>${i}</option>`).join('')}</select></span></div>
+      <div class="row"><span class="mu">${t('ui.kv_heads_label')}</span><span>${c.Hkv} (GQA ${c.Hq / c.Hkv}:1)</span></div>
+      <div class="row"><span class="mu">${t('ui.head_dim_label')}</span><span>${c.hd}</span></div>
+      <div class="row"><span class="mu">${t('ui.mlp_mult_label')}</span><span>${c.ffm} (ff=${c.d * c.ffm})</span></div>
+      <div class="row"><span class="mu">${t('ui.rope_theta_label')}</span><span>${c.theta}</span></div>
+      <h3 class="tip-title">${t('ui.input_sec_title')} <span class="info-icon">ⓘ</span>
+        <span class="tip-box">${t('ui.input_sec_tip')}</span>
       </h3>
       <div class="row">seq_len (T)<select data-k="T">${op([3, 4, 5, 6, 7, 8], c.T)}</select></div>
       <div class="row">seed<input data-k="seed" type="number" value="${c.seed}" style="width:90px"></div>
-      <h3 class="tip-title">殘差流範數 ‖xₜ‖ <span class="info-icon">ⓘ</span>
-        <span class="tip-box">每條線是一個 position；橫軸是各 block 寫入後的檢查點，淺色帶是目前步驟。</span>
+      <h3 class="tip-title">${t('ui.norm_sec_title')} <span class="info-icon">ⓘ</span>
+        <span class="tip-box">${t('ui.norm_sec_tip')}</span>
       </h3>
       ${chart()}
-      <h3>社群</h3>
+      <h3>${t('ui.social_sec_title')}</h3>
       <div class="mu">
         <a href="https://github.com/JunliXiao/toy-llama-stepper" target="_blank" rel="noopener" title="GitHub Repository" class="social-icon-link">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle;">
@@ -162,9 +209,6 @@
       const targetSideEl = $(`#side [data-k="${activeSideK}"]`);
       if (targetSideEl) targetSideEl.focus();
     }
-
-    const fx = $('#fx');
-    if (fx) typeset(fx);
   }
 
   function fillHs() {
@@ -182,7 +226,11 @@
     const keys = Object.keys(models);
     if (keys.length && $('#ms')) {
       $('#ms').innerHTML = keys
-        .map(k => `<option value="${k}"${k === S.sel.model ? ' selected' : ''}>${models[k].name}</option>`)
+        .map(k => {
+          const mNameKey = `models.${k}.name`;
+          const label = t(mNameKey) !== mNameKey ? t(mNameKey) : (models[k].name || k);
+          return `<option value="${k}"${k === S.sel.model ? ' selected' : ''}>${label}</option>`;
+        })
         .join('');
     }
   }
@@ -198,13 +246,13 @@
   const toggleL = () => {
     const isHidden = $('#app').classList.toggle('hide-l');
     $('#tl').classList.toggle('toggled', isHidden);
-    $('#tl').title = isHidden ? '展開左側步驟清單 (快捷鍵: [)' : '收合左側步驟清單 (快捷鍵: [)';
+    $('#tl').title = isHidden ? t('ui.toggle_l_show') : t('ui.toggle_l_hide');
   };
 
   const toggleR = () => {
     const isHidden = $('#app').classList.toggle('hide-r');
     $('#tr').classList.toggle('toggled', isHidden);
-    $('#tr').title = isHidden ? '展開右側資訊欄 (快捷鍵: ])' : '收合右側資訊欄 (快捷鍵: ])';
+    $('#tr').title = isHidden ? t('ui.toggle_r_show') : t('ui.toggle_r_hide');
   };
 
   global.ToyLlama.view = {
@@ -212,6 +260,7 @@
     typeset,
     matHTML,
     chart,
+    applyStaticI18n,
     render,
     fillHs,
     fillMs,
