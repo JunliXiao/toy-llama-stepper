@@ -132,6 +132,11 @@
           desc: '最後一層之後的 norm。真實模型在這之後接 unembed 變成 logits，此處省略，輸出就是這個矩陣。'
         }
       },
+      mobile_modal: {
+        title: '💻 建議使用桌面版瀏覽器',
+        desc: '本工具主要針對桌面系統設計。您在行動裝置上仍可繼續瀏覽，但建議改用電腦開啟以獲得最佳體驗。',
+        ok: '我知道了，繼續使用'
+      },
       models: {
         baseline: {
           name: '基準模型：Random Baseline, Seed 7',
@@ -271,6 +276,11 @@
           name: 'Final RMSNorm',
           desc: 'Final normalization after the last layer. In a full LLM, an unembedding matrix follows to produce logits; here it is omitted, and this matrix is the final output.'
         }
+      },
+      mobile_modal: {
+        title: '💻 Desktop Browser Recommended',
+        desc: 'This tool is designed primarily for desktop screens. You can still continue on mobile, though a desktop device is recommended for the best experience.',
+        ok: 'Got it, continue'
       },
       models: {
         baseline: {

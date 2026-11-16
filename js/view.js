@@ -255,6 +255,23 @@
     $('#tr').title = isHidden ? t('ui.toggle_r_show') : t('ui.toggle_r_hide');
   };
 
+  const isMobileDevice = () => {
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    // 涵蓋 iPadOS 13+ 預設回報 Macintosh 但具備多點觸控的情況
+    const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const isNarrowTouch = window.matchMedia('(pointer: coarse)').matches && window.innerWidth <= 900;
+    return isMobileUA || isIPadOS || isNarrowTouch;
+  };
+
+  const toggleMobileModal = open => {
+    const el = $('#modal-mobile');
+    if (!el) return;
+    if (open === undefined) el.classList.toggle('open');
+    else if (open) el.classList.add('open');
+    else el.classList.remove('open');
+  };
+
   global.ToyLlama.view = {
     $,
     typeset,
@@ -266,7 +283,9 @@
     fillMs,
     toggleModal,
     toggleL,
-    toggleR
+    toggleR,
+    isMobileDevice,
+    toggleMobileModal
   };
 
 })(typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : this);

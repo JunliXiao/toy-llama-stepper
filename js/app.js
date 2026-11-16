@@ -38,6 +38,13 @@
     if (e.target === $('#modal-kb')) view.toggleModal(false);
   };
 
+  // 行動裝置提示 Modal
+  $('#mobile-close').onclick = () => view.toggleMobileModal(false);
+  $('#mobile-ok').onclick = () => view.toggleMobileModal(false);
+  $('#modal-mobile').onclick = e => {
+    if (e.target === $('#modal-mobile')) view.toggleMobileModal(false);
+  };
+
   // 側邊欄收合按鈕
   $('#tl').onclick = view.toggleL;
   $('#tr').onclick = view.toggleR;
@@ -130,18 +137,20 @@
       return;
     }
 
-    // Esc 鍵：若指南開啟則關閉
+    // Esc 鍵：關閉任一開啟中的 Modal
     if (e.code === 'Escape') {
-      const el = $('#modal-kb');
-      if (el && el.classList.contains('open')) {
+      const kbOpen = $('#modal-kb')?.classList.contains('open');
+      const mbOpen = $('#modal-mobile')?.classList.contains('open');
+      if (kbOpen || mbOpen) {
         e.preventDefault();
-        view.toggleModal(false);
+        if (kbOpen) view.toggleModal(false);
+        if (mbOpen) view.toggleMobileModal(false);
         return;
       }
     }
 
-    // 若 Modal 處於開啟狀態，暫停其他操作以避免干擾
-    const modalOpen = $('#modal-kb') && $('#modal-kb').classList.contains('open');
+    // 若任一 Modal 處於開啟狀態，暫停其他快捷鍵操作
+    const modalOpen = $('#modal-kb')?.classList.contains('open') || $('#modal-mobile')?.classList.contains('open');
     if (modalOpen) return;
 
     // 單鍵操作（Q, W, [, ] 等）必須確保沒有按下 Ctrl/Meta/Alt，避免搶佔瀏覽器或系統快捷鍵
@@ -210,5 +219,11 @@
 
   // 初始啟動
   state.loadModel('baseline', true);
+
+  if (view.isMobileDevice()) {
+    view.toggleL();
+    view.toggleR();
+    view.toggleMobileModal(true);
+  }
 
 })(typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : this);
